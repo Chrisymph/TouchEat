@@ -1,35 +1,4 @@
-@extends('layouts.admin')
-
-@section('content')
 <div class="space-y-6">
-        <!-- Onglets -->
-    <div class="mb-6">
-        <div class="border-b border-gray-200">
-            <nav class="-mb-px flex space-x-8">
-                <button @click="switchTab('overview')" 
-                        :class="activeTab === 'overview' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                    Vue d'ensemble
-                </button>
-                <button @click="switchTab('orders')" 
-                        :class="activeTab === 'orders' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                    Commandes
-                </button>
-                <button @click="switchTab('menu')" 
-                        :class="activeTab === 'menu' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                    Menu
-                </button>
-                <button @click="switchTab('reports')" 
-                        :class="activeTab === 'reports' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                    Rapports
-                </button>
-            </nav>
-        </div>
-    </div>
-    
     <div class="flex justify-between items-center">
         <h2 class="text-3xl font-bold">Gestion des Commandes</h2>
         <div class="flex space-x-4">
@@ -42,21 +11,21 @@
         </div>
     </div>
 
-    <!-- Onglets des commandes -->
+    <!-- Onglets des commandes - CORRIGÉ avec data-status -->
     <div class="border-b border-gray-200">
         <nav class="-mb-px flex space-x-8">
-            <a href="{{ route('admin.orders', ['status' => 'pending']) }}" 
-               class="{{ $status === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+            <button data-status="pending" 
+                   class="{{ $status === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                 En Attente ({{ $orderCounts['pending'] }})
-            </a>
-            <a href="{{ route('admin.orders', ['status' => 'ready']) }}" 
-               class="{{ $status === 'ready' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+            </button>
+            <button data-status="ready" 
+                   class="{{ $status === 'ready' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                 Prêtes ({{ $orderCounts['ready'] }})
-            </a>
-            <a href="{{ route('admin.orders', ['status' => 'completed']) }}" 
-               class="{{ $status === 'completed' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+            </button>
+            <button data-status="completed" 
+                   class="{{ $status === 'completed' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                 Terminées ({{ $orderCounts['completed'] }})
-            </a>
+            </button>
         </nav>
     </div>
 
@@ -100,7 +69,7 @@
                     <div class="space-y-2 mb-4">
                         @foreach($order->items as $item)
                         <div class="flex justify-between text-sm">
-                            <span>{{ $item->menuItem->name }} x{{ $item->quantity }}</span>
+                            <span>{{ $item->menuItem->name ?? 'Article' }} x{{ $item->quantity }}</span>
                             <span class="font-semibold">
                                 {{ number_format($item->unit_price * $item->quantity, 0, ',', ' ') }} FCFA
                             </span>
@@ -118,7 +87,7 @@
                         </div>
                     </div>
 
-                    <!-- Actions CORRIGÉES -->
+                    <!-- Actions -->
                     <div class="flex space-x-2">
                         <a href="{{ route('admin.orders.show', $order->id) }}" 
                            class="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-center hover:bg-gray-200">
@@ -146,4 +115,3 @@
         </div>
     @endif
 </div>
-@endsection

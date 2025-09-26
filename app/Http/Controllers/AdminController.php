@@ -38,7 +38,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Gestion des commandes
+     * Gestion des commandes (version complète)
      */
     public function orders(Request $request)
     {
@@ -67,6 +67,57 @@ class AdminController extends Controller
         ];
 
         return view('admin.orders', compact('orders', 'status', 'orderCounts'));
+    }
+
+    /**
+     * Gestion des commandes (version AJAX pour le dashboard)
+     */
+    public function ordersAjax(Request $request)
+    {
+        $status = $request->get('status', 'pending');
+        
+        $query = Order::with(['items.menuItem']);
+        
+        switch ($status) {
+            case 'pending':
+                $query->whereIn('status', ['commandé', 'en_cours']);
+                break;
+            case 'ready':
+                $query->where('status', 'prêt');
+                break;
+            case 'completed':
+                $query->whereIn('status', ['livré', 'terminé']);
+                break;
+        }
+        
+        $orders = $query->orderBy('created_at', 'desc')->get();
+        
+        $orderCounts = [
+            'pending' => Order::whereIn('status', ['commandé', 'en_cours'])->count(),
+            'ready' => Order::where('status', 'prêt')->count(),
+            'completed' => Order::whereIn('status', ['livré', 'terminé'])->count(),
+        ];
+
+        return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
+    }
+
+    /**
+     * Gestion du menu (version AJAX pour le dashboard)
+     */
+    public function menuAjax(Request $request)
+    {
+        $category = $request->get('category', 'repas');
+        
+        $menuItems = MenuItem::where('category', $category)
+                           ->orderBy('name')
+                           ->get();
+                           
+        $categories = [
+            'repas' => MenuItem::where('category', 'repas')->count(),
+            'boisson' => MenuItem::where('category', 'boisson')->count(),
+        ];
+
+        return view('admin.menu-content', compact('menuItems', 'category', 'categories'));
     }
 
     /**
@@ -100,7 +151,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Gestion du menu
+     * Gestion du menu (version complète)
      */
     public function menu(Request $request)
     {
@@ -118,47 +169,120 @@ class AdminController extends Controller
         return view('admin.menu', compact('menuItems', 'category', 'categories'));
     }
 
-    /**
-     * Ajouter un nouvel article au menu
-     */
-    public function addMenuItem(Request $request)
-    {
-        $request->validate([
+/**
+ * Ajouter un nouvel article au menu
+ */
+public function addMenuItem(Request $request)
+{
+    \Log::info('=== DÉBUT AJOUT ARTICLE ===');
+    \Log::info('Données reçues:', $request->all());
+
+    try {
+        // Validation des données
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
             'category' => 'required|in:repas,boisson',
-            'available' => 'boolean',
+            'available' => 'sometimes|boolean',
         ]);
 
-        MenuItem::create([
-            'name' => $request->name,
-            'description' => $request->description,
-            'price' => $request->price,
-            'category' => $request->category,
-            'available' => $request->available ?? true,
-        ]);
+        \Log::info('Validation réussie:', $validated);
+
+        // Préparer les données SANS la colonne image
+        $menuData = [
+            'name' => $validated['name'],
+            'description' => $validated['description'],
+            'price' => $validated['price'],
+            'category' => $validated['category'],
+            'available' => $request->has('available') ? (bool)$request->available : true,
+            'promotion_discount' => null,
+            'original_price' => null,
+            // SUPPRIMÉ: 'image' => 'default.jpg',
+        ];
+
+        \Log::info('Données préparées pour insertion:', $menuData);
+
+        // Créer l'article
+        $menuItem = MenuItem::create($menuData);
+
+        \Log::info('Article créé avec succès:', ['id' => $menuItem->id]);
+
+        // Si c'est une requête AJAX, retourner JSON
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Article ajouté au menu!',
+                'item' => $menuItem
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Article ajouté au menu!');
+
+    } catch (\Exception $e) {
+        \Log::error('Erreur lors de la sauvegarde:', [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la sauvegarde: ' . $e->getMessage()
+            ], 500);
+        }
+
+        return redirect()->back()
+            ->with('error', 'Erreur lors de la sauvegarde: ' . $e->getMessage())
+            ->withInput();
     }
+}
 
     /**
      * Mettre à jour un article du menu
      */
     public function updateMenuItem(Request $request, $id)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'price' => 'required|numeric|min:0',
-            'category' => 'required|in:repas,boisson',
-            'available' => 'boolean',
-        ]);
+        try {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'required|string',
+                'price' => 'required|numeric|min:0',
+                'category' => 'required|in:repas,boisson',
+                'available' => 'boolean',
+            ]);
 
-        $menuItem = MenuItem::findOrFail($id);
-        $menuItem->update($request->all());
+            $menuItem = MenuItem::findOrFail($id);
+            $menuItem->update($request->all());
 
-        return redirect()->back()->with('success', 'Article mis à jour!');
+            // Si c'est une requête AJAX, retourner JSON
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Article mis à jour!',
+                    'item' => $menuItem
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Article mis à jour!');
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la mise à jour:', [
+                'message' => $e->getMessage()
+            ]);
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
+                ->withInput();
+        }
     }
 
     /**
@@ -166,10 +290,25 @@ class AdminController extends Controller
      */
     public function deleteMenuItem($id)
     {
-        $menuItem = MenuItem::findOrFail($id);
-        $menuItem->delete();
+        try {
+            $menuItem = MenuItem::findOrFail($id);
+            $menuItem->delete();
 
-        return redirect()->back()->with('success', 'Article supprimé!');
+            return response()->json([
+                'success' => true,
+                'message' => 'Article supprimé!'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la suppression:', [
+                'message' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -177,11 +316,23 @@ class AdminController extends Controller
      */
     public function toggleMenuItemAvailability($id)
     {
-        $menuItem = MenuItem::findOrFail($id);
-        $menuItem->available = !$menuItem->available;
-        $menuItem->save();
+        try {
+            $menuItem = MenuItem::findOrFail($id);
+            $menuItem->available = !$menuItem->available;
+            $menuItem->save();
 
-        return redirect()->back()->with('success', 'Disponibilité mise à jour!');
+            return response()->json([
+                'success' => true,
+                'message' => 'Disponibilité mise à jour!',
+                'available' => $menuItem->available
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -189,23 +340,34 @@ class AdminController extends Controller
      */
     public function addPromotion(Request $request, $id)
     {
-        $request->validate([
-            'discount' => 'required|numeric|min:1|max:99',
-            'original_price' => 'required|numeric|min:0',
-        ]);
+        try {
+            $request->validate([
+                'discount' => 'required|numeric|min:1|max:99',
+                'original_price' => 'required|numeric|min:0',
+            ]);
 
-        $menuItem = MenuItem::findOrFail($id);
-        
-        // Calculer le nouveau prix avec la promotion
-        $discountedPrice = $request->original_price * (1 - ($request->discount / 100));
-        
-        $menuItem->update([
-            'price' => $discountedPrice,
-            'promotion_discount' => $request->discount,
-            'original_price' => $request->original_price,
-        ]);
+            $menuItem = MenuItem::findOrFail($id);
+            
+            // Calculer le nouveau prix avec la promotion
+            $discountedPrice = $request->original_price * (1 - ($request->discount / 100));
+            
+            $menuItem->update([
+                'price' => $discountedPrice,
+                'promotion_discount' => $request->discount,
+                'original_price' => $request->original_price,
+            ]);
 
-        return redirect()->back()->with('success', 'Promotion appliquée!');
+            return response()->json([
+                'success' => true,
+                'message' => 'Promotion appliquée!'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -213,15 +375,26 @@ class AdminController extends Controller
      */
     public function removePromotion($id)
     {
-        $menuItem = MenuItem::findOrFail($id);
-        
-        $menuItem->update([
-            'price' => $menuItem->original_price,
-            'promotion_discount' => null,
-            'original_price' => null,
-        ]);
+        try {
+            $menuItem = MenuItem::findOrFail($id);
+            
+            $menuItem->update([
+                'price' => $menuItem->original_price,
+                'promotion_discount' => null,
+                'original_price' => null,
+            ]);
 
-        return redirect()->back()->with('success', 'Promotion supprimée!');
+            return response()->json([
+                'success' => true,
+                'message' => 'Promotion supprimée!'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

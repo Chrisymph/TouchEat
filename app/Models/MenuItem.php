@@ -16,10 +16,17 @@ class MenuItem extends Model
         'original_price',
     ];
 
+    protected $attributes = [
+        'available' => true,
+        'promotion_discount' => null,
+        'original_price' => null,
+    ];
+
     protected $casts = [
         'price' => 'decimal:2',
         'original_price' => 'decimal:2',
         'available' => 'boolean',
+        'promotion_discount' => 'decimal:2',
     ];
 
     public function getHasPromotionAttribute()

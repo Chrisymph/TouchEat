@@ -17,7 +17,7 @@ return new class extends Migration
             $table->boolean('available')->default(true);
             $table->decimal('promotion_discount', 5, 2)->nullable();
             $table->decimal('original_price', 10, 2)->nullable();
-            $table->string('image')->nullable();
+            // supprimer:$table->string('image')->nullable();
             $table->timestamps();
         });
     }
