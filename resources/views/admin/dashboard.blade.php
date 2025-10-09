@@ -409,12 +409,20 @@ document.getElementById('globalMenuForm').addEventListener('submit', async funct
     try {
         console.log('Envoi des données vers:', this.action);
         
+        // CORRECTION : Récupérer correctement le token CSRF
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                         document.querySelector('input[name="_token"]')?.value;
+        
+        if (!csrfToken) {
+            throw new Error('Token CSRF non trouvé');
+        }
+        
         const response = await fetch(this.action, {
-            method: 'POST', // Toujours utiliser POST, Laravel gère PUT via _method
+            method: 'POST',
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRF-TOKEN': csrfToken
             }
         });
 
