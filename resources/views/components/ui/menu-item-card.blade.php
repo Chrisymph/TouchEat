@@ -58,14 +58,11 @@
                     ✏️ Modifier
                 </button>
                 
-                <form action="/admin/menu/{{ $item->id }}" method="POST" class="inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet article ?')">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" 
-                            class="bg-red-100 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-200">
-                        🗑️
-                    </button>
-                </form>
+                <!-- REMPLACER le formulaire par un bouton avec fonction JavaScript -->
+                <button onclick="handleDeleteItem({{ $item->id }})" 
+                        class="bg-red-100 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-200">
+                    🗑️ Supprimer
+                </button>
             </div>
         </div>
     </div>

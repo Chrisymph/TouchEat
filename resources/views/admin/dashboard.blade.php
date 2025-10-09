@@ -158,6 +158,11 @@
         <div x-html="menuContent"></div>
     </div>
 
+    <!-- Onglet Rapports (chargement AJAX) -->
+    <div x-show="activeTab === 'reports' && !loading && !error" id="reports-container">
+        <div x-html="reportsContent"></div>
+    </div>
+
     <!-- Indicateur de chargement -->
     <div x-show="loading" class="text-center py-12">
         <div class="text-6xl mb-4">🔄</div>
@@ -185,45 +190,14 @@
         </button>
     </div>
 
-    <!-- Onglet Rapports -->
-    <div x-show="activeTab === 'reports'">
-        <div class="bg-white rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <h2 class="text-lg font-semibold">Rapports et Statistiques</h2>
-            </div>
-            <div class="p-6">
-                <div class="text-center py-8">
-                    <div class="text-6xl mb-4">📊</div>
-                    <p class="text-lg text-gray-600 mb-4">Accédez aux rapports détaillés</p>
-                    <a href="{{ route('admin.reports') }}" 
-                       class="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
-                        <span>📈 Voir les rapports complets</span>
-                    </a>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <h3 class="font-semibold mb-2">📋 Rapports disponibles</h3>
-                        <ul class="text-sm text-gray-600 space-y-1">
-                            <li>• Revenus par période</li>
-                            <li>• Articles les plus populaires</li>
-                            <li>• Performance des tables</li>
-                            <li>• Temps de préparation moyen</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <h3 class="font-semibold mb-2">💡 Conseils</h3>
-                        <ul class="text-sm text-gray-600 space-y-1">
-                            <li>• Consultez les rapports quotidiennement</li>
-                            <li>• Identifiez les tendances</li>
-                            <li>• Optimisez votre menu</li>
-                            <li>• Améliorez l'efficacité</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div x-show="activeTab === 'reports' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <p class="font-semibold">Erreur lors du chargement des rapports.</p>
+        <p class="mt-2">
+            <a href="{{ route('admin.reports') }}" class="underline font-semibold">Accéder à la page complète</a>
+        </p>
+        <button @click="loadReports()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+            Réessayer
+        </button>
     </div>
 </div>
 
@@ -292,6 +266,57 @@
     </div>
 </div>
 
+<!-- Modal pour les promotions -->
+<div id="promotionModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Ajouter une promotion</h3>
+            
+            <form id="promotionForm" method="POST">
+                @csrf
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Article</label>
+                        <p class="text-lg font-semibold" id="promotionItemName">-</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prix actuel</label>
+                        <p class="text-lg" id="promotionCurrentPrice">- FCFA</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Pourcentage de réduction</label>
+                        <input type="number" name="discount" id="promotionDiscount" required min="1" max="99"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="ex: 20">
+                        <p class="text-sm text-gray-500 mt-1">Entre 1% et 99%</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nouveau prix</label>
+                        <p class="text-lg font-semibold text-green-600" id="promotionNewPrice">- FCFA</p>
+                    </div>
+                    
+                    <input type="hidden" name="original_price" id="promotionOriginalPrice">
+                    <input type="hidden" name="item_id" id="promotionItemId">
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closePromotionModal()" 
+                            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                        Annuler
+                    </button>
+                    <button type="submit" id="promotionSubmitButton"
+                            class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Appliquer la promotion
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 // Rendre le composant accessible globalement
 window.dashboardComponent = null;
@@ -313,6 +338,24 @@ function globalCloseModal() {
     document.getElementById('globalAddModal').style.display = 'none';
 }
 
+// Fonctions pour les promotions
+function openPromotionModal(item) {
+    console.log('Opening promotion modal for:', item);
+    document.getElementById('promotionItemName').textContent = item.name;
+    document.getElementById('promotionCurrentPrice').textContent = item.price + ' FCFA';
+    document.getElementById('promotionOriginalPrice').value = item.price;
+    document.getElementById('promotionItemId').value = item.id;
+    document.getElementById('promotionDiscount').value = '';
+    document.getElementById('promotionNewPrice').textContent = '- FCFA';
+    
+    // Afficher le modal
+    document.getElementById('promotionModal').style.display = 'flex';
+}
+
+function closePromotionModal() {
+    document.getElementById('promotionModal').style.display = 'none';
+}
+
 // Fonctions globales pour les boutons du menu
 function handleEditItem(item) {
     // Remplir le formulaire avec les données de l'article
@@ -332,9 +375,67 @@ function handleEditItem(item) {
     document.getElementById('globalAddModal').style.display = 'flex';
 }
 
-function handleAddPromotion(item) {
-    // Implémentez la logique de promotion si nécessaire
-    alert('Fonction promotion pour: ' + item.name);
+function handleAddPromotion(itemId) {
+    console.log('🎯 handleAddPromotion appelée avec ID:', itemId);
+    
+    // Méthode simple et directe - récupérer via une requête API
+    fetch(`/admin/menu/${itemId}/ajax`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur HTTP: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(item => {
+            console.log('✅ Données récupérées:', item);
+            
+            // Vérifier que nous avons bien les données
+            if (!item || !item.name || !item.price) {
+                throw new Error('Données incomplètes reçues');
+            }
+            
+            openPromotionModal(item);
+        })
+        .catch(error => {
+            console.error('❌ Erreur lors de la récupération:', error);
+            
+            // Fallback: essayer de récupérer depuis le DOM
+            console.log('🔄 Tentative de récupération depuis le DOM...');
+            
+            const buttons = document.querySelectorAll('button');
+            let targetButton = null;
+            
+            for (let button of buttons) {
+                const onclickAttr = button.getAttribute('onclick');
+                if (onclickAttr && onclickAttr.includes(`handleAddPromotion(${itemId})`)) {
+                    targetButton = button;
+                    break;
+                }
+            }
+            
+            if (targetButton) {
+                const card = targetButton.closest('.bg-white');
+                if (card) {
+                    const nameElement = card.querySelector('h3');
+                    const priceElement = card.querySelector('.text-lg.font-bold');
+                    
+                    if (nameElement && priceElement) {
+                        const name = nameElement.textContent.trim();
+                        const priceText = priceElement.textContent.trim();
+                        const price = parseFloat(priceText.replace(/[^\d,]/g, '').replace(',', ''));
+                        
+                        if (!isNaN(price)) {
+                            const item = { id: itemId, name: name, price: price };
+                            console.log('✅ Données récupérées depuis DOM:', item);
+                            openPromotionModal(item);
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            alert('❌ Erreur: Impossible de charger les données de l\'article (ID: ' + itemId + '). Veuillez réessayer.');
+        });
 }
 
 function handleRemovePromotion(itemId) {
@@ -394,7 +495,47 @@ function handleToggleAvailability(itemId) {
     });
 }
 
-// Gestion de la soumission du formulaire global - VERSION CORRIGÉE
+// Fonction pour supprimer un article (NOUVELLE FONCTION)
+function handleDeleteItem(itemId) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet article ? Cette action est irréversible.')) {
+        console.log('🗑️ Suppression de l\'article ID:', itemId);
+        
+        fetch(`{{ url('admin/menu') }}/${itemId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur HTTP: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(result => {
+            if (result.success) {
+                console.log('✅ Suppression réussie:', result.message);
+                
+                // Afficher un message de succès
+                alert('✅ ' + result.message);
+                
+                // Recharger le contenu du menu sans quitter l'onglet
+                if (window.dashboardComponent) {
+                    window.dashboardComponent.loadMenu();
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erreur lors de la suppression:', error);
+            alert('❌ Erreur lors de la suppression: ' + error.message);
+        });
+    }
+}
+
+// Gestion de la soumission du formulaire global
 document.getElementById('globalMenuForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
@@ -409,7 +550,6 @@ document.getElementById('globalMenuForm').addEventListener('submit', async funct
     try {
         console.log('Envoi des données vers:', this.action);
         
-        // CORRECTION : Récupérer correctement le token CSRF
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
                          document.querySelector('input[name="_token"]')?.value;
         
@@ -464,10 +604,75 @@ document.getElementById('globalMenuForm').addEventListener('submit', async funct
     }
 });
 
-// Fermer le modal global en cliquant à l'extérieur
+// Calcul du nouveau prix en temps réel pour les promotions
+document.getElementById('promotionDiscount').addEventListener('input', function(e) {
+    const discount = parseInt(e.target.value) || 0;
+    const originalPrice = parseFloat(document.getElementById('promotionOriginalPrice').value);
+    
+    if (discount > 0 && discount <= 99) {
+        const newPrice = originalPrice * (1 - discount / 100);
+        document.getElementById('promotionNewPrice').textContent = newPrice.toFixed(0) + ' FCFA';
+    } else {
+        document.getElementById('promotionNewPrice').textContent = '- FCFA';
+    }
+});
+
+// Gestion de la soumission du formulaire de promotion
+document.getElementById('promotionForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitButton = document.getElementById('promotionSubmitButton');
+    const originalText = submitButton.innerHTML;
+    
+    // Afficher un indicateur de chargement
+    submitButton.innerHTML = '⏳ Application...';
+    submitButton.disabled = true;
+    
+    try {
+        const itemId = document.getElementById('promotionItemId').value;
+        const response = await fetch(`{{ url('admin/menu') }}/${itemId}/promotion`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            closePromotionModal();
+            alert('✅ ' + result.message);
+            
+            // Recharger le menu
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadMenu();
+            }
+        } else {
+            alert('❌ ' + result.message);
+        }
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur réseau lors de l\'application de la promotion');
+    } finally {
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+    }
+});
+
+// Fermer les modaux en cliquant à l'extérieur
 document.getElementById('globalAddModal').addEventListener('click', function(e) {
     if (e.target === this) {
         globalCloseModal();
+    }
+});
+
+document.getElementById('promotionModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closePromotionModal();
     }
 });
 
@@ -490,6 +695,7 @@ document.addEventListener('alpine:init', () => {
         activeTab: 'overview',
         ordersContent: '',
         menuContent: '',
+        reportsContent: '',
         loading: false,
         error: false,
         
@@ -505,6 +711,8 @@ document.addEventListener('alpine:init', () => {
                     this.loadOrders();
                 } else if (value === 'menu') {
                     this.loadMenu();
+                } else if (value === 'reports') {
+                    this.loadReports();
                 }
             });
         },
@@ -520,6 +728,8 @@ document.addEventListener('alpine:init', () => {
                 await this.loadOrders();
             } else if (tabName === 'menu') {
                 await this.loadMenu();
+            } else if (tabName === 'reports') {
+                await this.loadReports();
             }
             
             this.loading = false;
@@ -584,6 +794,38 @@ document.addEventListener('alpine:init', () => {
                 console.error('Erreur de chargement:', error);
                 this.error = true;
                 this.menuContent = '<div class="text-center py-8 text-red-600">Erreur de chargement du menu</div>';
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadReports(startDate = null, endDate = null) {
+            try {
+                this.loading = true;
+                this.error = false;
+                
+                let url = `{{ url('admin/reports/ajax') }}?_=${Date.now()}`;
+                if (startDate && endDate) {
+                    url += `&start_date=${startDate}&end_date=${endDate}`;
+                }
+                
+                console.log('Chargement des rapports:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const html = await response.text();
+                this.reportsContent = html;
+                
+                console.log('Rapports chargés avec succès');
+                
+            } catch (error) {
+                console.error('Erreur de chargement des rapports:', error);
+                this.error = true;
+                this.reportsContent = '<div class="text-center py-8 text-red-600">Erreur de chargement des rapports</div>';
             } finally {
                 this.loading = false;
             }

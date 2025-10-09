@@ -25,11 +25,11 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/orders', [AdminController::class, 'orders'])->name('admin.orders');
-    Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax'); // NOUVELLE ROUTE
+    Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax');
     Route::put('/orders/{id}/status', [AdminController::class, 'updateOrderStatus'])->name('admin.orders.status');
     Route::get('/orders/{id}', [AdminController::class, 'showOrder'])->name('admin.orders.show');
     
-    Route::get('/menu/ajax', [AdminController::class, 'menuAjax'])->name('admin.menu.ajax'); // NOUVELLE ROUTE
+    Route::get('/menu/ajax', [AdminController::class, 'menuAjax'])->name('admin.menu.ajax');
     Route::get('/menu', [AdminController::class, 'menu'])->name('admin.menu');
     Route::post('/menu', [AdminController::class, 'addMenuItem'])->name('admin.menu.add');
     Route::put('/menu/{id}', [AdminController::class, 'updateMenuItem'])->name('admin.menu.update');
@@ -37,16 +37,15 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/menu/{id}/toggle', [AdminController::class, 'toggleMenuItemAvailability'])->name('admin.menu.toggle');
     Route::post('/menu/{id}/promotion', [AdminController::class, 'addPromotion'])->name('admin.menu.promotion.add');
     Route::delete('/menu/{id}/promotion', [AdminController::class, 'removePromotion'])->name('admin.menu.promotion.remove');
-
-        // Routes AJAX pour le menu
-    Route::post('/menu/{id}/toggle', [AdminController::class, 'toggleMenuItemAvailability'])->name('admin.menu.toggle');
-    Route::delete('/menu/{id}/promotion', [AdminController::class, 'removePromotion'])->name('admin.menu.promotion.remove');
-    
+    Route::get('/menu/{id}/ajax', [AdminController::class, 'getMenuItem'])->name('admin.menu.item.ajax');
+    // Routes pour les rapports
     Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
+    Route::get('/reports/ajax', [AdminController::class, 'reportsAjax'])->name('admin.reports.ajax');
+    Route::get('/reports/chart-data', [AdminController::class, 'reportsChartData'])->name('admin.reports.chart');
+    Route::post('/reports/save', [AdminController::class, 'saveReport'])->name('admin.reports.save');
+    
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
-
-
 
 // Routes client (si vous en avez)
 Route::middleware(['auth'])->group(function () {
