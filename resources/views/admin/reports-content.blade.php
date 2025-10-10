@@ -1,7 +1,4 @@
-@extends('layouts.admin')
-
-@section('content')
-<div class="space-y-6">
+<div class="space-y-6" x-data="reportsComponent()" x-init="init()">
     <!-- En-tête -->
     <div class="flex justify-between items-center">
         <div>
@@ -10,28 +7,23 @@
                 Analyses basées sur {{ $totalOrders }} commandes terminées
             </p>
         </div>
-        <form action="{{ route('admin.reports') }}" method="GET" class="flex gap-2">
-            <input type="hidden" name="save_report" value="1">
-            <input type="hidden" name="start_date" value="{{ $startDate }}">
-            <input type="hidden" name="end_date" value="{{ $endDate }}">
-            <button type="submit" 
-                    class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
-                💾 Sauvegarder ce rapport
-            </button>
-        </form>
+        <button @click="saveReport()" 
+                class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
+            💾 Sauvegarder ce rapport
+        </button>
     </div>
 
     <!-- Filtres par date -->
     <div class="bg-white rounded-lg shadow p-6">
-        <form action="{{ route('admin.reports') }}" method="GET" class="flex gap-4 items-end">
+        <form @submit.prevent="applyFilters()" class="flex gap-4 items-end">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
-                <input type="date" name="start_date" value="{{ $startDate }}" 
+                <input type="date" x-model="filters.start_date" 
                        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
-                <input type="date" name="end_date" value="{{ $endDate }}" 
+                <input type="date" x-model="filters.end_date" 
                        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <button type="submit" 
@@ -148,10 +140,8 @@
             </div>
             <div class="p-6 space-y-4">
                 <!-- Graphique -->
-                <div class="h-48" id="chart-container">
-                    <div class="flex items-center justify-center h-full text-gray-500">
-                        Chargement du graphique...
-                    </div>
+                <div class="h-48">
+                    <canvas id="reportsChart"></canvas>
                 </div>
 
                 <!-- Légende -->
@@ -245,73 +235,123 @@
     </div>
 </div>
 
-<!-- Inclure Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Charger les données du graphique
-    fetch('{{ route("admin.reports.chart") }}?start_date={{ $startDate }}&end_date={{ $endDate }}')
-        .then(response => response.json())
-        .then(data => {
-            renderChart(data.topItems);
-        })
-        .catch(error => {
-            console.error('Erreur lors du chargement des données:', error);
-            renderChart(@json($topItems));
-        });
+function reportsComponent() {
+    return {
+        filters: {
+            start_date: '{{ $startDate }}',
+            end_date: '{{ $endDate }}'
+        },
+        
+        init() {
+            this.renderChart();
+        },
+        
+        async applyFilters() {
+            try {
+                // Recharger le contenu des rapports avec les nouveaux filtres
+                if (window.dashboardComponent) {
+                    await window.dashboardComponent.loadReports(this.filters.start_date, this.filters.end_date);
+                }
+            } catch (error) {
+                console.error('Erreur lors du filtrage:', error);
+                alert('Erreur lors de l\'application des filtres');
+            }
+        },
+        
+        async saveReport() {
+            try {
+                const response = await fetch('{{ route("admin.reports.save") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        start_date: this.filters.start_date,
+                        end_date: this.filters.end_date
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Rapport sauvegardé avec succès!');
+                } else {
+                    alert('❌ Erreur: ' + result.message);
+                }
+                
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde:', error);
+                alert('❌ Erreur réseau lors de la sauvegarde');
+            }
+        },
+        
+        renderChart() {
+            const ctx = document.getElementById('reportsChart');
+            if (!ctx) return;
+            
+            const topItems = @json($topItems);
+            
+            const colors = topItems.map(item => 
+                item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
+            );
 
-    function renderChart(topItems) {
-        const ctx = document.createElement('canvas');
-        document.getElementById('chart-container').innerHTML = '';
-        document.getElementById('chart-container').appendChild(ctx);
-
-        const colors = topItems.map(item => 
-            item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
-        );
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: topItems.map(item => item.name),
-                datasets: [{
-                    label: 'Revenus (€)',
-                    data: topItems.map(item => item.totalRevenue),
-                    backgroundColor: colors,
-                    borderColor: colors,
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topItems.map(item => item.name),
+                    datasets: [{
+                        label: 'Revenus (€)',
+                        data: topItems.map(item => item.totalRevenue),
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
                         }
                     },
-                    y: {
-                        beginAtZero: true
-                    }
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const item = topItems[context.dataIndex];
-                                return [
-                                    `Revenus: ${item.totalRevenue.toFixed(2)}€`,
-                                    `${item.totalQuantity} vendus • ${item.orders} commandes`
-                                ];
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const item = topItems[context.dataIndex];
+                                    return [
+                                        `Revenus: ${item.totalRevenue.toFixed(2)}€`,
+                                        `${item.totalQuantity} vendus • ${item.orders} commandes`
+                                    ];
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
-});
+}
+
+// Initialiser Chart.js si pas déjà fait
+if (typeof Chart === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+    script.onload = function() {
+        // Réinitialiser les composants après chargement de Chart.js
+        if (window.reportsComponentInstance) {
+            window.reportsComponentInstance.renderChart();
+        }
+    };
+    document.head.appendChild(script);
+}
 </script>
-@endsection

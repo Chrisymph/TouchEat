@@ -2,28 +2,32 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderItem extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'order_id',
         'menu_item_id',
         'quantity',
         'unit_price',
+        'category', // AJOUTER category ici
+        'notes'
     ];
 
-    protected $casts = [
-        'unit_price' => 'decimal:2',
+    protected $attributes = [
+        'category' => 'repas'
     ];
 
-    public function order(): BelongsTo
+    public function order()
     {
         return $this->belongsTo(Order::class);
     }
 
-    public function menuItem(): BelongsTo
+    public function menuItem()
     {
         return $this->belongsTo(MenuItem::class);
     }
