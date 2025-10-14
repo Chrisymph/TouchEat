@@ -10,6 +10,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+
+// Route home (redirection générale après connexion)
+Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
+
 // Routes d'authentification client
 Route::get('/client-auth', [AuthController::class, 'showClientAuth'])->name('client.auth');
 Route::post('/client-login', [AuthController::class, 'clientLogin'])->name('client.login');
@@ -47,7 +51,8 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
 
-// Routes client (si vous en avez)
-Route::middleware(['auth'])->group(function () {
-    // Routes pour les clients...
+/// Routes client
+Route::middleware(['auth'])->prefix('client')->group(function () {
+    Route::get('/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
+    // Ajoutez d'autres routes client ici
 });
