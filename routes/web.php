@@ -54,5 +54,10 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
 /// Routes client
 Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
-    // Ajoutez d'autres routes client ici
+    Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
+    Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
+    Route::post('/order/place', [ClientController::class, 'placeOrder'])->name('client.order.place');
+    Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
+    Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
