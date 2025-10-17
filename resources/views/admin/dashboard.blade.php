@@ -201,6 +201,51 @@
     </div>
 </div>
 
+<!-- Modal pour définir le temps de préparation -->
+<div id="timeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Définir le temps de préparation</h3>
+            
+            <form id="timeForm" method="POST">
+                @csrf
+                <input type="hidden" name="status" value="en_cours">
+                <input type="hidden" id="timeOrderId" name="order_id">
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Temps de préparation estimé (minutes)
+                        </label>
+                        <input type="number" name="estimated_time" id="estimatedTime" 
+                               required min="1" max="120" value="15"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="15">
+                        <p class="text-sm text-gray-500 mt-1">Temps estimé pour préparer la commande</p>
+                    </div>
+                    
+                    <div class="bg-blue-50 p-3 rounded-lg">
+                        <p class="text-sm text-blue-700">
+                            ⏱️ Ce temps sera affiché au client avec un compte à rebours.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeTimeModal()" 
+                            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                        Annuler
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                        Confirmer et démarrer le timer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modaux globaux pour le menu -->
 <div id="globalAddModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
@@ -317,9 +362,229 @@
     </div>
 </div>
 
+<!-- Modal pour les détails de commande -->
+<div id="orderDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Détails de la Commande #<span id="modalOrderId"></span></h3>
+                <button type="button" onclick="closeOrderDetailsModal()" 
+                        class="text-gray-400 hover:text-gray-600 text-2xl">
+                    &times;
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            <!-- Informations de la commande -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="space-y-3">
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">Informations Générales</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Table:</span>
+                                <span class="font-semibold" id="modalTableNumber"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Type:</span>
+                                <span class="font-semibold" id="modalOrderType"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Statut:</span>
+                                <span class="font-semibold" id="modalOrderStatus"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Paiement:</span>
+                                <span class="font-semibold" id="modalPaymentStatus"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">Informations Client</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Téléphone:</span>
+                                <span class="font-semibold" id="modalCustomerPhone"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Date:</span>
+                                <span class="font-semibold" id="modalOrderDate"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Temps estimé:</span>
+                                <span class="font-semibold" id="modalEstimatedTime"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Articles de la commande -->
+            <div class="mb-6">
+                <h4 class="font-semibold text-gray-700 mb-3">Articles Commandés</h4>
+                <div class="space-y-3" id="modalOrderItems">
+                    <!-- Les articles seront chargés ici dynamiquement -->
+                </div>
+            </div>
+
+            <!-- Total -->
+            <div class="border-t pt-4">
+                <div class="flex justify-between items-center text-lg font-bold">
+                    <span>Total de la commande:</span>
+                    <span class="text-blue-600" id="modalOrderTotal"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 bg-gray-50">
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeOrderDetailsModal()" 
+                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                    Fermer
+                </button>
+                <!-- Le bouton "Voir la page complète" est caché car vous n'avez pas la vue -->
+                <a href="#" id="modalFullDetailsLink" style="display: none;"
+                   class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                    Voir la page complète
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Rendre le composant accessible globalement
 window.dashboardComponent = null;
+
+// Fonctions pour le modal de temps
+function openTimeModal(orderId) {
+    console.log('🟢 OUVERTURE du modal pour la commande:', orderId);
+    
+    // Mettre à jour l'ID de commande dans le formulaire
+    document.getElementById('timeOrderId').value = orderId;
+    
+    // Afficher le modal
+    document.getElementById('timeModal').style.display = 'flex';
+    
+    // Focus sur le champ de temps
+    setTimeout(() => {
+        const timeInput = document.getElementById('estimatedTime');
+        timeInput.focus();
+        timeInput.select();
+    }, 100);
+}
+
+function closeTimeModal() {
+    console.log('🔴 FERMETURE du modal');
+    document.getElementById('timeModal').style.display = 'none';
+}
+
+// Fonctions pour le modal des détails de commande (VERSION CORRIGÉE)
+function openOrderDetailsModal(orderId) {
+    console.log('📋 Ouverture du modal pour la commande:', orderId);
+    
+    // Afficher le modal avec un indicateur de chargement
+    document.getElementById('orderDetailsModal').style.display = 'flex';
+    document.getElementById('modalOrderId').textContent = orderId;
+    document.getElementById('modalOrderItems').innerHTML = `
+        <div class="text-center py-4">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p class="text-gray-600 mt-2">Chargement des détails...</p>
+        </div>
+    `;
+    
+    // URL CORRECTE - utilisez la route avec /ajax
+    const apiUrl = `/admin/orders/${orderId}/ajax`;
+    console.log('🔗 Appel de l\'API:', apiUrl);
+    
+    // Charger les détails de la commande via l'API JSON
+    fetch(apiUrl)
+        .then(response => {
+            console.log('📥 Réponse reçue, statut:', response.status);
+            if (!response.ok) {
+                throw new Error('Erreur HTTP: ' + response.status + ' - URL: ' + apiUrl);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Données reçues:', data);
+            if (data.success) {
+                populateOrderModalWithJSON(data.order, orderId);
+            } else {
+                throw new Error(data.message || 'Erreur inconnue du serveur');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erreur lors du chargement des détails:', error);
+            document.getElementById('modalOrderItems').innerHTML = `
+                <div class="text-center py-4 text-red-600">
+                    ❌ ${error.message || 'Erreur lors du chargement des détails'}
+                    <br><small>Vérifiez que la commande existe</small>
+                </div>
+            `;
+        });
+}
+
+// Fonction pour remplir le modal avec les données JSON
+function populateOrderModalWithJSON(orderData, orderId) {
+    console.log('🎨 Remplissage du modal avec:', orderData);
+    
+    // Remplir les informations de base
+    document.getElementById('modalOrderId').textContent = orderData.id || orderId;
+    document.getElementById('modalTableNumber').textContent = orderData.table_number || 'N/A';
+    document.getElementById('modalOrderType').textContent = orderData.order_type ? 
+        orderData.order_type.charAt(0).toUpperCase() + orderData.order_type.slice(1) : 'Sur place';
+    document.getElementById('modalOrderStatus').textContent = orderData.status ? 
+        orderData.status.charAt(0).toUpperCase() + orderData.status.slice(1) : 'Commandé';
+    document.getElementById('modalPaymentStatus').textContent = orderData.payment_status || 'Non payé';
+    document.getElementById('modalCustomerPhone').textContent = orderData.customer_phone || 'Non renseigné';
+    document.getElementById('modalOrderDate').textContent = orderData.created_at || 'N/A';
+    document.getElementById('modalEstimatedTime').textContent = orderData.estimated_time || 'Non défini';
+    document.getElementById('modalOrderTotal').textContent = orderData.total || '0 FCFA';
+    
+    // Remplir les articles
+    const itemsContainer = document.getElementById('modalOrderItems');
+    if (orderData.items && orderData.items.length > 0) {
+        itemsContainer.innerHTML = orderData.items.map(item => `
+            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center space-x-3">
+                    <span class="font-medium text-gray-800">${item.name}</span>
+                    <span class="text-gray-600 text-sm bg-white px-2 py-1 rounded border">
+                        x${item.quantity}
+                    </span>
+                </div>
+                <div class="text-right">
+                    <span class="font-semibold text-gray-800">
+                        ${(item.total).toLocaleString('fr-FR')} FCFA
+                    </span>
+                    <p class="text-sm text-gray-500">
+                        ${item.price.toLocaleString('fr-FR')} FCFA l'unité
+                    </p>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        itemsContainer.innerHTML = `
+            <div class="text-center py-4 text-gray-500">
+                Aucun article trouvé dans cette commande
+            </div>
+        `;
+    }
+    
+    // Cacher le lien "Voir la page complète" puisque vous n'avez pas la vue
+    document.getElementById('modalFullDetailsLink').style.display = 'none';
+    
+    console.log('✅ Modal rempli avec succès');
+}
+
+// Fonction pour fermer le modal des détails
+function closeOrderDetailsModal() {
+    document.getElementById('orderDetailsModal').style.display = 'none';
+}
 
 // Fonctions globales pour les modaux
 function globalOpenAddModal() {
@@ -495,7 +760,7 @@ function handleToggleAvailability(itemId) {
     });
 }
 
-// Fonction pour supprimer un article (NOUVELLE FONCTION)
+// Fonction pour supprimer un article
 function handleDeleteItem(itemId) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet article ? Cette action est irréversible.')) {
         console.log('🗑️ Suppression de l\'article ID:', itemId);
@@ -534,6 +799,67 @@ function handleDeleteItem(itemId) {
         });
     }
 }
+
+// Gestion de la soumission du formulaire de temps
+document.getElementById('timeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    console.log('📤 Soumission du formulaire de temps');
+    
+    const formData = new FormData(this);
+    const orderId = document.getElementById('timeOrderId').value;
+    const submitButton = this.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    
+    // Afficher l'indicateur de chargement
+    submitButton.innerHTML = '⏳ Confirmation...';
+    submitButton.disabled = true;
+    
+    console.log(`📦 Données: orderId=${orderId}`);
+    
+    // Utiliser l'endpoint AJAX pour la mise à jour
+    fetch(`/admin/orders/${orderId}/status-ajax`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        }
+    })
+    .then(response => {
+        console.log('📥 Réponse reçue, statut:', response.status);
+        if (!response.ok) {
+            throw new Error('Erreur HTTP: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('✅ Résultat:', result);
+        
+        if (result.success) {
+            // Fermer le modal
+            closeTimeModal();
+            
+            // Afficher un message de succès
+            alert('✅ ' + result.message);
+            
+            // Recharger les commandes
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadOrders();
+            }
+        } else {
+            throw new Error(result.message || 'Erreur inconnue');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Erreur:', error);
+        alert('❌ Erreur: ' + error.message);
+    })
+    .finally(() => {
+        // Restaurer le bouton
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+    });
+});
 
 // Gestion de la soumission du formulaire global
 document.getElementById('globalMenuForm').addEventListener('submit', async function(e) {
@@ -664,6 +990,12 @@ document.getElementById('promotionForm').addEventListener('submit', async functi
 });
 
 // Fermer les modaux en cliquant à l'extérieur
+document.getElementById('timeModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeTimeModal();
+    }
+});
+
 document.getElementById('globalAddModal').addEventListener('click', function(e) {
     if (e.target === this) {
         globalCloseModal();
@@ -673,6 +1005,24 @@ document.getElementById('globalAddModal').addEventListener('click', function(e) 
 document.getElementById('promotionModal').addEventListener('click', function(e) {
     if (e.target === this) {
         closePromotionModal();
+    }
+});
+
+document.getElementById('orderDetailsModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeOrderDetailsModal();
+    }
+});
+
+// Fermer les modaux avec la touche Échap
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('[id$="Modal"]');
+        modals.forEach(modal => {
+            if (modal.style.display === 'flex') {
+                modal.style.display = 'none';
+            }
+        });
     }
 });
 
@@ -689,6 +1039,24 @@ function loadOrdersStatus(status) {
         window.dashboardComponent.loadOrders(status);
     }
 }
+
+// Gestion des événements pour les boutons "Voir Détails" - DÉLÉGATION D'ÉVÉNEMENTS
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('view-order-details-btn')) {
+        const orderId = e.target.getAttribute('data-order-id');
+        console.log('📋 Clic sur Voir Détails pour la commande:', orderId);
+        openOrderDetailsModal(orderId);
+    }
+});
+
+// Gestion des événements pour les boutons "Accepter" - DÉLÉGATION D'ÉVÉNEMENTS
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('accept-order-btn')) {
+        const orderId = e.target.getAttribute('data-order-id');
+        console.log('🟡 Clic sur Accepter pour la commande:', orderId);
+        openTimeModal(orderId);
+    }
+});
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('dashboardComponent', () => ({
@@ -822,6 +1190,14 @@ document.addEventListener('alpine:init', () => {
                 
                 console.log('Rapports chargés avec succès');
                 
+                // Réinitialiser Chart.js après chargement
+                setTimeout(() => {
+                    const reportsComponent = document.querySelector('[x-data="reportsComponent()"]');
+                    if (reportsComponent && reportsComponent.__x) {
+                        reportsComponent.__x.$data.renderChart();
+                    }
+                }, 100);
+                
             } catch (error) {
                 console.error('Erreur de chargement des rapports:', error);
                 this.error = true;
@@ -868,18 +1244,6 @@ document.addEventListener('alpine:init', () => {
 
 // Gestion des modaux globaux
 document.addEventListener('DOMContentLoaded', function() {
-    // Fermer les modaux avec la touche Échap
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const modals = document.querySelectorAll('[id$="Modal"]');
-            modals.forEach(modal => {
-                if (modal.style.display === 'flex') {
-                    modal.style.display = 'none';
-                }
-            });
-        }
-    });
-    
     console.log('Dashboard JavaScript chargé');
 });
 </script>

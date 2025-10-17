@@ -24,15 +24,15 @@ class ClientController extends Controller
 
         // Récupérer le panier depuis la session
         $cart = session()->get('cart', []);
-        $cartItems = array_values($cart); // Convertir en tableau indexé pour Alpine.js
+        $cartItems = array_values($cart);
         $cartCount = array_sum(array_column($cart, 'quantity'));
 
         return view('client.dashboard', [
             'tableNumber' => Auth::user()->table_number,
             'menuItems' => $menuItems,
             'currentOrder' => $currentOrder,
-            'cartItems' => $cartItems, // Passer les items du panier
-            'cartCount' => $cartCount  // Passer le count du panier
+            'cartItems' => $cartItems,
+            'cartCount' => $cartCount
         ]);
     }
 
@@ -50,7 +50,7 @@ class ClientController extends Controller
             $cart[$request->menu_item_id]['quantity'] += $request->quantity;
         } else {
             $cart[$request->menu_item_id] = [
-                'id' => $menuItem->id, // IMPORTANT: Ajouter l'ID pour les updates
+                'id' => $menuItem->id,
                 'name' => $menuItem->name,
                 'description' => $menuItem->description,
                 'price' => $menuItem->price,
@@ -68,7 +68,7 @@ class ClientController extends Controller
         return response()->json([
             'success' => true,
             'cart_count' => $cartCount,
-            'cart_items' => array_values($cart) // Retourner les items pour mise à jour
+            'cart_items' => array_values($cart)
         ]);
     }
 
@@ -133,7 +133,7 @@ class ClientController extends Controller
             'payment_status' => 'en_attente',
             'order_type' => $request->order_type,
             'customer_phone' => $request->phone_number,
-            'estimated_time' => 15 // 15 minutes par défaut
+            'estimated_time' => null
         ]);
 
         foreach ($cart as $menuItemId => $item) {
@@ -147,14 +147,84 @@ class ClientController extends Controller
             ]);
         }
 
-        // Vider le panier après commande
         session()->forget('cart');
 
         return response()->json([
             'success' => true,
             'order_id' => $order->id,
             'estimated_time' => $order->estimated_time,
-            'message' => 'Commande passée avec succès!'
+            'message' => 'Commande passée avec succès!',
+            'redirect_url' => route('client.order.confirmation', $order->id)
+        ]);
+    }
+
+    /**
+     * Ajouter des articles à une commande existante
+     */
+    public function addToExistingOrder(Request $request, $orderId)
+    {
+        $request->validate([
+            'menu_item_id' => 'required|exists:menu_items,id',
+            'quantity' => 'required|integer|min:1'
+        ]);
+
+        $order = Order::where('id', $orderId)
+            ->where('table_number', Auth::user()->table_number)
+            ->firstOrFail();
+
+        $existingItem = OrderItem::where('order_id', $order->id)
+            ->where('menu_item_id', $request->menu_item_id)
+            ->first();
+
+        $menuItem = MenuItem::find($request->menu_item_id);
+
+        if ($existingItem) {
+            $existingItem->quantity += $request->quantity;
+            $existingItem->save();
+        } else {
+            OrderItem::create([
+                'order_id' => $order->id,
+                'menu_item_id' => $request->menu_item_id,
+                'quantity' => $request->quantity,
+                'unit_price' => $menuItem->price,
+                'category' => $menuItem->category,
+                'notes' => ''
+            ]);
+        }
+
+        $total = OrderItem::where('order_id', $order->id)
+            ->get()
+            ->sum(function($item) {
+                return $item->unit_price * $item->quantity;
+            });
+
+        $order->total = $total;
+        $order->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Article ajouté à la commande existante!',
+            'order_total' => $total
+        ]);
+    }
+
+    /**
+     * Afficher la confirmation de commande
+     */
+    public function orderConfirmation($orderId)
+    {
+        if (!Auth::check() || Auth::user()->role !== 'client') {
+            return redirect()->route('client.auth');
+        }
+
+        $order = Order::with(['items.menuItem'])
+                     ->where('id', $orderId)
+                     ->where('table_number', Auth::user()->table_number)
+                     ->firstOrFail();
+
+        return view('client.order-confirmation', [
+            'tableNumber' => Auth::user()->table_number,
+            'order' => $order
         ]);
     }
 
@@ -173,16 +243,34 @@ class ClientController extends Controller
         ]);
     }
 
+    /**
+     * Afficher l'historique des commandes
+     */
     public function orderHistory()
     {
-        $orders = Order::where('table_number', Auth::user()->table_number)
+        if (!Auth::check() || Auth::user()->role !== 'client') {
+            return redirect()->route('client.auth');
+        }
+
+        $user = Auth::user();
+        
+        // Récupérer TOUTES les commandes (sans filtre de paiement)
+        $orders = Order::where('table_number', $user->table_number)
             ->with('items.menuItem')
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Debug dans la vue
+        $debug = [
+            'count_all' => $orders->count(),
+            'payment_statuses' => $orders->pluck('payment_status')->unique(),
+            'statuses' => $orders->pluck('status')->unique()
+        ];
+
         return view('client.order-history', [
-            'orders' => $orders,
-            'tableNumber' => Auth::user()->table_number
+            'orders' => $orders, // Afficher TOUTES les commandes
+            'tableNumber' => $user->table_number,
+            'debug' => $debug
         ]);
     }
 }

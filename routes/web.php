@@ -10,7 +10,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-
 // Route home (redirection générale après connexion)
 Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
 
@@ -31,7 +30,12 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/orders', [AdminController::class, 'orders'])->name('admin.orders');
     Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax');
     Route::put('/orders/{id}/status', [AdminController::class, 'updateOrderStatus'])->name('admin.orders.status');
+    
+    // ROUTES CORRIGÉES POUR LES DÉTAILS DE COMMANDE
     Route::get('/orders/{id}', [AdminController::class, 'showOrder'])->name('admin.orders.show');
+    Route::get('/orders/{id}/ajax', [AdminController::class, 'showOrder'])->name('admin.orders.ajax.details');
+    
+    Route::post('/orders/{id}/status-ajax', [AdminController::class, 'updateOrderStatusAjax'])->name('admin.orders.status.ajax');
     
     Route::get('/menu/ajax', [AdminController::class, 'menuAjax'])->name('admin.menu.ajax');
     Route::get('/menu', [AdminController::class, 'menu'])->name('admin.menu');
@@ -42,6 +46,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/menu/{id}/promotion', [AdminController::class, 'addPromotion'])->name('admin.menu.promotion.add');
     Route::delete('/menu/{id}/promotion', [AdminController::class, 'removePromotion'])->name('admin.menu.promotion.remove');
     Route::get('/menu/{id}/ajax', [AdminController::class, 'getMenuItem'])->name('admin.menu.item.ajax');
+    
     // Routes pour les rapports
     Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
     Route::get('/reports/ajax', [AdminController::class, 'reportsAjax'])->name('admin.reports.ajax');
@@ -51,13 +56,15 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
 
-/// Routes client
+// Routes client
 Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
     Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
     Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
     Route::post('/order/place', [ClientController::class, 'placeOrder'])->name('client.order.place');
     Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
+    Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
+    Route::post('/order/{orderId}/add-item', [ClientController::class, 'addToExistingOrder'])->name('client.order.add-item');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });

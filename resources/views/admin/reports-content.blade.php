@@ -43,7 +43,7 @@
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Chiffre d'affaires</p>
-                    <p class="text-2xl font-bold">{{ number_format($totalRevenue, 2, ',', ' ') }}€</p>
+                    <p class="text-2xl font-bold">{{ number_format($totalRevenue, 0, ',', ' ') }} FCFA</p>
                 </div>
             </div>
         </div>
@@ -69,7 +69,7 @@
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Panier moyen</p>
-                    <p class="text-2xl font-bold">{{ number_format($avgOrderValue, 2, ',', ' ') }}€</p>
+                    <p class="text-2xl font-bold">{{ number_format($avgOrderValue, 0, ',', ' ') }} FCFA</p>
                 </div>
             </div>
         </div>
@@ -82,7 +82,7 @@
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Temps moyen</p>
-                    <p class="text-2xl font-bold">{{ number_format($avgPreparationTime, 0) }}min</p>
+                    <p class="text-2xl font-bold">{{ number_format($avgPreparationTime, 0) }} min</p>
                 </div>
             </div>
         </div>
@@ -158,7 +158,7 @@
 
                 <!-- Liste -->
                 <div class="space-y-3">
-                    @foreach($topItems as $index => $item)
+                    @forelse($topItems as $index => $item)
                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-bold">
@@ -172,13 +172,17 @@
                             </div>
                         </div>
                         <div class="text-right">
-                            <p class="font-semibold">{{ number_format($item['totalRevenue'], 2, ',', ' ') }}€</p>
+                            <p class="font-semibold">{{ number_format($item['totalRevenue'], 0, ',', ' ') }} FCFA</p>
                             <span class="px-2 py-1 border border-gray-300 rounded-full text-xs text-gray-600">
                                 {{ $item['category'] }}
                             </span>
                         </div>
                     </div>
-                    @endforeach
+                    @empty
+                    <div class="text-center py-4 text-gray-500">
+                        Aucune donnée disponible pour la période sélectionnée
+                    </div>
+                    @endforelse
                 </div>
             </div>
         </div>
@@ -196,7 +200,7 @@
                     <div class="space-y-1">
                         @foreach($detailedStats['ordersByStatus'] as $status => $count)
                         <div class="flex justify-between text-sm">
-                            <span class="capitalize">{{ $status }}</span>
+                            <span class="capitalize">{{ str_replace('_', ' ', $status) }}</span>
                             <span>{{ $count }}</span>
                         </div>
                         @endforeach
@@ -208,11 +212,11 @@
                     <div class="space-y-1">
                         <div class="flex justify-between text-sm">
                             <span>Revenus sur place</span>
-                            <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'], 2, ',', ' ') }}€</span>
+                            <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'], 0, ',', ' ') }} FCFA</span>
                         </div>
                         <div class="flex justify-between text-sm">
                             <span>Revenus livraison</span>
-                            <span>{{ number_format($detailedStats['revenueAnalysis']['livraison'], 2, ',', ' ') }}€</span>
+                            <span>{{ number_format($detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
                         </div>
                     </div>
                 </div>
@@ -242,17 +246,49 @@ function reportsComponent() {
             start_date: '{{ $startDate }}',
             end_date: '{{ $endDate }}'
         },
+        chart: null,
         
         init() {
-            this.renderChart();
+            // Attendre que le DOM soit complètement chargé
+            this.$nextTick(() => {
+                this.renderChart();
+            });
         },
         
         async applyFilters() {
             try {
-                // Recharger le contenu des rapports avec les nouveaux filtres
-                if (window.dashboardComponent) {
-                    await window.dashboardComponent.loadReports(this.filters.start_date, this.filters.end_date);
+                const params = new URLSearchParams({
+                    start_date: this.filters.start_date,
+                    end_date: this.filters.end_date
+                });
+
+                // Recharger le contenu via AJAX
+                const response = await fetch(`/admin/reports/ajax?${params}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (response.ok) {
+                    const html = await response.text();
+                    // Remplacer le contenu des rapports
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    
+                    // Mettre à jour les données et re-rendre le graphique
+                    const newReportsContent = tempDiv.querySelector('[x-data="reportsComponent()"]');
+                    if (newReportsContent) {
+                        this.$el.innerHTML = newReportsContent.innerHTML;
+                        // Réinitialiser le graphique
+                        if (this.chart) {
+                            this.chart.destroy();
+                        }
+                        this.renderChart();
+                    }
+                } else {
+                    alert('Erreur lors du chargement des données');
                 }
+                
             } catch (error) {
                 console.error('Erreur lors du filtrage:', error);
                 alert('Erreur lors de l\'application des filtres');
@@ -289,24 +325,45 @@ function reportsComponent() {
         
         renderChart() {
             const ctx = document.getElementById('reportsChart');
-            if (!ctx) return;
+            if (!ctx) {
+                console.error('Canvas pour le graphique non trouvé');
+                return;
+            }
             
             const topItems = @json($topItems);
+            
+            // Si pas de données, afficher un message
+            if (topItems.length === 0) {
+                ctx.parentElement.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-2">📊</div>
+                        <p>Aucune donnée disponible pour le graphique</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Détruire le graphique existant
+            if (this.chart) {
+                this.chart.destroy();
+            }
             
             const colors = topItems.map(item => 
                 item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
             );
 
-            new Chart(ctx, {
+            this.chart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: topItems.map(item => item.name),
                     datasets: [{
-                        label: 'Revenus (€)',
+                        label: 'Revenus (FCFA)',
                         data: topItems.map(item => item.totalRevenue),
                         backgroundColor: colors,
-                        borderColor: colors,
-                        borderWidth: 1
+                        borderColor: colors.map(color => color.replace('rgb', 'rgba').replace(')', ', 0.8)')),
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
                     }]
                 },
                 options: {
@@ -314,27 +371,56 @@ function reportsComponent() {
                     maintainAspectRatio: false,
                     scales: {
                         x: {
+                            grid: {
+                                display: false
+                            },
                             ticks: {
                                 maxRotation: 45,
-                                minRotation: 45
+                                minRotation: 45,
+                                font: {
+                                    size: 11
+                                }
                             }
                         },
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('fr-FR') + ' FCFA';
+                                }
+                            }
                         }
                     },
                     plugins: {
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: {
+                                size: 12
+                            },
+                            bodyFont: {
+                                size: 11
+                            },
                             callbacks: {
                                 label: function(context) {
                                     const item = topItems[context.dataIndex];
                                     return [
-                                        `Revenus: ${item.totalRevenue.toFixed(2)}€`,
-                                        `${item.totalQuantity} vendus • ${item.orders} commandes`
+                                        `Revenus: ${item.totalRevenue.toLocaleString('fr-FR')} FCFA`,
+                                        `Quantité: ${item.totalQuantity} vendus`,
+                                        `Commandes: ${item.orders}`
                                     ];
                                 }
                             }
+                        },
+                        legend: {
+                            display: false
                         }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
                     }
                 }
             });
@@ -342,16 +428,8 @@ function reportsComponent() {
     }
 }
 
-// Initialiser Chart.js si pas déjà fait
-if (typeof Chart === 'undefined') {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-    script.onload = function() {
-        // Réinitialiser les composants après chargement de Chart.js
-        if (window.reportsComponentInstance) {
-            window.reportsComponentInstance.renderChart();
-        }
-    };
-    document.head.appendChild(script);
-}
+// S'assurer que Chart.js est chargé avant d'initialiser
+document.addEventListener('alpine:init', () => {
+    // Alpine est initialisé, le composant sera créé automatiquement
+});
 </script>

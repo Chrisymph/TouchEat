@@ -104,6 +104,61 @@ class AdminController extends Controller
     }
 
     /**
+     * Afficher les détails d'une commande (CORRIGÉ)
+     */
+    public function showOrder($id)
+    {
+        try {
+            $order = Order::with(['items.menuItem'])->findOrFail($id);
+            
+            // DÉTECTION CORRECTE DES REQUÊTES AJAX
+            if (request()->ajax() || request()->wantsJson() || str_contains(request()->url(), '/ajax')) {
+                return response()->json([
+                    'success' => true,
+                    'order' => [
+                        'id' => $order->id,
+                        'table_number' => $order->table_number ?? 'N/A',
+                        'order_type' => $order->order_type ?? 'sur_place',
+                        'status' => $order->status ?? 'commandé',
+                        'payment_status' => $order->payment_status ?? 'Non payé',
+                        'customer_phone' => $order->customer_phone ?? 'Non renseigné',
+                        'created_at' => $order->created_at->format('d/m/Y H:i'),
+                        'estimated_time' => $order->estimated_time ? $order->estimated_time . ' minutes' : 'Non défini',
+                        'total' => number_format($order->total, 0, ',', ' ') . ' FCFA',
+                        'items' => $order->items->map(function($item) {
+                            return [
+                                'name' => $item->menuItem->name ?? $item->name ?? 'Article inconnu',
+                                'quantity' => $item->quantity,
+                                'price' => $item->unit_price,
+                                'total' => $item->unit_price * $item->quantity
+                            ];
+                        })
+                    ]
+                ]);
+            }
+            
+            // Si pas AJAX, retourner une vue (même si vous ne l'avez pas)
+            return response()->json([
+                'error' => 'Page non disponible. Utilisez le modal.'
+            ], 404);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur showOrder:', ['id' => $id, 'error' => $e->getMessage()]);
+            
+            if (request()->ajax() || request()->wantsJson() || str_contains(request()->url(), '/ajax')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Commande non trouvée: ' . $e->getMessage()
+                ], 404);
+            }
+            
+            return response()->json([
+                'error' => 'Commande non trouvée'
+            ], 404);
+        }
+    }
+
+    /**
      * Gestion du menu (version AJAX pour le dashboard)
      */
     public function menuAjax(Request $request)
@@ -147,7 +202,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Rapports et statistiques (version AJAX pour le dashboard)
+     * Rapports et statistiques (version AJAX pour le dashboard - CORRIGÉ)
      */
     public function reportsAjax(Request $request)
     {
@@ -169,7 +224,7 @@ class AdminController extends Controller
         $dineInOrders = $completedOrders->where('order_type', 'sur_place')->count();
         $deliveryOrders = $completedOrders->where('order_type', 'livraison')->count();
 
-        // Performance du menu
+        // Performance du menu - CORRECTION
         $menuPerformance = $this->getMenuPerformance($completedOrders);
         $topItems = $this->getTopItems($menuPerformance);
 
@@ -194,7 +249,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Performance du menu
+     * Performance du menu (CORRIGÉ)
      */
     private function getMenuPerformance($orders)
     {
@@ -202,21 +257,22 @@ class AdminController extends Controller
 
         foreach ($orders as $order) {
             foreach ($order->items as $item) {
-                $name = $item->name;
+                $menuItemName = $item->menuItem->name ?? 'Article inconnu';
+                $category = $item->menuItem->category ?? $item->category ?? 'repas';
                 
-                if (!isset($performance[$name])) {
-                    $performance[$name] = [
-                        'name' => $name,
-                        'category' => $item->category,
+                if (!isset($performance[$menuItemName])) {
+                    $performance[$menuItemName] = [
+                        'name' => $menuItemName,
+                        'category' => $category,
                         'totalQuantity' => 0,
                         'totalRevenue' => 0,
                         'orders' => 0
                     ];
                 }
 
-                $performance[$name]['totalQuantity'] += $item->quantity;
-                $performance[$name]['totalRevenue'] += $item->price * $item->quantity;
-                $performance[$name]['orders'] += 1;
+                $performance[$menuItemName]['totalQuantity'] += $item->quantity;
+                $performance[$menuItemName]['totalRevenue'] += $item->unit_price * $item->quantity;
+                $performance[$menuItemName]['orders'] += 1;
             }
         }
 
@@ -224,7 +280,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Top articles
+     * Top articles (CORRIGÉ)
      */
     private function getTopItems($menuPerformance)
     {
@@ -252,7 +308,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Statistiques détaillées
+     * Statistiques détaillées (CORRIGÉ)
      */
     private function getDetailedStats($startDate, $endDate)
     {
@@ -276,7 +332,7 @@ class AdminController extends Controller
             'livraison' => $completedOrders->where('order_type', 'livraison')->sum('total'),
         ];
 
-        // CORRECTION : Utiliser la nouvelle colonne category
+        // Performance du menu - CORRECTION
         $menuItems = OrderItem::whereHas('order', function($query) use ($startDate, $endDate) {
                 $query->whereBetween('created_at', [$startDate, $endDate])
                       ->whereIn('status', ['terminé', 'livré']);
@@ -299,7 +355,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Sauvegarder un rapport
+     * Sauvegarder un rapport (CORRIGÉ)
      */
     public function saveReport(Request $request)
     {
@@ -310,6 +366,17 @@ class AdminController extends Controller
             $start = Carbon::parse($startDate);
             $end = Carbon::parse($endDate);
             
+            // Récupérer les données du rapport
+            $completedOrders = Order::whereBetween('created_at', [$startDate, $endDate])
+                ->whereIn('status', ['terminé', 'livré'])
+                ->with('items')
+                ->get();
+
+            $totalRevenue = $completedOrders->sum('total');
+            $totalOrders = $completedOrders->count();
+            $menuPerformance = $this->getMenuPerformance($completedOrders);
+            $topItems = $this->getTopItems($menuPerformance);
+
             // Déterminer le type de rapport
             $type = 'custom';
             if ($start->eq($end)) {
@@ -321,11 +388,16 @@ class AdminController extends Controller
             }
 
             $report = Report::create([
-                'name' => Report::generateName($type, $start, $end),
+                'name' => 'Rapport ' . $type . ' du ' . $start->format('d/m/Y') . ' au ' . $end->format('d/m/Y'),
                 'type' => $type,
                 'start_date' => $start,
                 'end_date' => $end,
-                'data' => ['message' => 'Rapport sauvegardé depuis le dashboard'],
+                'data' => [
+                    'total_revenue' => $totalRevenue,
+                    'total_orders' => $totalOrders,
+                    'top_items' => $topItems,
+                    'period' => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y')
+                ],
                 'description' => 'Rapport généré automatiquement depuis le dashboard',
                 'is_generated' => true
             ]);
@@ -337,6 +409,7 @@ class AdminController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            \Log::error('Erreur sauvegarde rapport:', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la sauvegarde du rapport: ' . $e->getMessage()
@@ -345,7 +418,7 @@ class AdminController extends Controller
     }
 
     /**
-     * API pour les données de graphique
+     * API pour les données de graphique (CORRIGÉ)
      */
     public function reportsChartData(Request $request)
     {
@@ -363,11 +436,11 @@ class AdminController extends Controller
         // Données par défaut si pas de données
         if (empty($topItems)) {
             $topItems = [
-                ['name' => 'Pizza', 'category' => 'repas', 'totalRevenue' => 120, 'totalQuantity' => 15, 'orders' => 12],
-                ['name' => 'Burger', 'category' => 'repas', 'totalRevenue' => 95, 'totalQuantity' => 12, 'orders' => 10],
-                ['name' => 'Coca', 'category' => 'boisson', 'totalRevenue' => 45, 'totalQuantity' => 20, 'orders' => 15],
-                ['name' => 'Pâtes', 'category' => 'repas', 'totalRevenue' => 80, 'totalQuantity' => 10, 'orders' => 8],
-                ['name' => 'Eau', 'category' => 'boisson', 'totalRevenue' => 30, 'totalQuantity' => 25, 'orders' => 18]
+                ['name' => 'Pizza', 'category' => 'repas', 'totalRevenue' => 12000, 'totalQuantity' => 15, 'orders' => 12],
+                ['name' => 'Burger', 'category' => 'repas', 'totalRevenue' => 9500, 'totalQuantity' => 12, 'orders' => 10],
+                ['name' => 'Coca', 'category' => 'boisson', 'totalRevenue' => 4500, 'totalQuantity' => 20, 'orders' => 15],
+                ['name' => 'Pâtes', 'category' => 'repas', 'totalRevenue' => 8000, 'totalQuantity' => 10, 'orders' => 8],
+                ['name' => 'Eau', 'category' => 'boisson', 'totalRevenue' => 3000, 'totalQuantity' => 25, 'orders' => 18]
             ];
         }
 
@@ -377,16 +450,22 @@ class AdminController extends Controller
     }
 
     /**
-     * Mettre à jour le statut d'une commande
+     * Mettre à jour le statut d'une commande avec temps estimé
      */
     public function updateOrderStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:commandé,en_cours,prêt,livré,terminé'
+            'status' => 'required|in:commandé,en_cours,prêt,livré,terminé',
+            'estimated_time' => 'nullable|integer|min:1'
         ]);
 
         $order = Order::findOrFail($id);
         $order->status = $request->status;
+        
+        // Si l'admin fournit un temps estimé, l'utiliser
+        if ($request->has('estimated_time') && $request->estimated_time) {
+            $order->estimated_time = $request->estimated_time;
+        }
         
         if ($request->status === 'prêt') {
             $order->marked_ready_at = now();
@@ -398,12 +477,41 @@ class AdminController extends Controller
     }
 
     /**
-     * Afficher les détails d'une commande
+     * Mettre à jour le statut d'une commande via AJAX
      */
-    public function showOrder($id)
+    public function updateOrderStatusAjax(Request $request, $id)
     {
-        $order = Order::with('items')->findOrFail($id);
-        return view('admin.order-details', compact('order'));
+        $request->validate([
+            'status' => 'required|in:commandé,en_cours,prêt,livré,terminé',
+            'estimated_time' => 'nullable|integer|min:1'
+        ]);
+
+        try {
+            $order = Order::findOrFail($id);
+            $order->status = $request->status;
+            
+            // Si l'admin fournit un temps estimé, l'utiliser
+            if ($request->has('estimated_time') && $request->estimated_time) {
+                $order->estimated_time = $request->estimated_time;
+            }
+            
+            if ($request->status === 'prêt') {
+                $order->marked_ready_at = now();
+            }
+            
+            $order->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Statut de la commande mis à jour!',
+                'order' => $order
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -675,7 +783,7 @@ class AdminController extends Controller
         $dineInOrders = $completedOrders->where('order_type', 'sur_place')->count();
         $deliveryOrders = $completedOrders->where('order_type', 'livraison')->count();
 
-        // Performance du menu
+        // Performance du menu - CORRECTION
         $menuPerformance = $this->getMenuPerformance($completedOrders);
         $topItems = $this->getTopItems($menuPerformance);
 

@@ -72,7 +72,7 @@
             </div>
         </template>
 
-        <!-- Vue Menu (comme l'image 2) -->
+        <!-- Vue Menu -->
         <template x-if="currentView === 'menu'">
             <div class="max-w-7xl mx-auto">
                 <!-- Header Menu avec bouton retour et panier -->
@@ -118,13 +118,12 @@
                     </div>
                 </div>
 
-                <!-- Menu Items - Design avec PLUS D'ESPACEMENT -->
+                <!-- Menu Items -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
                     <template x-for="item in filteredMenu" :key="item.id">
                         <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1 relative overflow-hidden group"
                              :class="{'opacity-60': !item.available}">
                             
-                            <!-- Lueur subtile en fond -->
                             <div class="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
                             <div class="relative z-10 flex justify-between items-start mb-4">
@@ -302,6 +301,59 @@
             </div>
         </template>
 
+        <!-- Vue Historique -->
+        <template x-if="currentView === 'history'">
+            <div class="max-w-6xl mx-auto">
+                <div class="flex items-center justify-between mb-8">
+                    <button 
+                        @click="currentView = 'home'" 
+                        class="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-all duration-300 font-semibold group">
+                        <span class="text-2xl group-hover:-translate-x-1 transition-transform duration-300">←</span>
+                        <span class="group-hover:text-blue-600">Retour à l'accueil</span>
+                    </button>
+                    
+                    <h2 class="text-3xl font-bold text-gray-800 text-center">
+                        Historique des Commandes
+                    </h2>
+                    
+                    <a href="{{ route('client.order.history') }}" 
+                       class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                        Voir détail complet
+                    </a>
+                </div>
+
+                <!-- Résumé des dernières commandes -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Dernières commandes</h3>
+                        <p class="text-gray-600 text-sm mb-4">Vos 3 commandes les plus récentes</p>
+                        <a href="{{ route('client.order.history') }}" 
+                           class="text-blue-600 hover:text-blue-700 font-semibold text-sm">
+                            Voir tout l'historique →
+                        </a>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Commandes en cours</h3>
+                        <p class="text-gray-600 text-sm">Suivez l'état de vos commandes actuelles</p>
+                    </div>
+                </div>
+
+                <!-- Message d'information -->
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+                    <div class="text-4xl mb-4">📋</div>
+                    <h3 class="text-xl font-semibold text-blue-800 mb-2">Historique complet disponible</h3>
+                    <p class="text-blue-700 mb-4">
+                        Consultez toutes vos commandes passées avec les détails complets sur la page dédiée
+                    </p>
+                    <a href="{{ route('client.order.history') }}" 
+                       class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                        Accéder à l'historique complet
+                    </a>
+                </div>
+            </div>
+        </template>
+
         <!-- Modal de paiement -->
         <template x-if="showPaymentModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -351,8 +403,8 @@
             currentView: 'home',
             activeCategory: 'repas',
             menuItems: @json($menuItems),
-            cartItems: @json($cartItems), // Récupérer depuis le controller
-            cartCount: {{ $cartCount }}, // Récupérer depuis le controller
+            cartItems: @json($cartItems),
+            cartCount: {{ $cartCount }},
             cartTotal: 0,
             showPaymentModal: false,
             showDeliveryModal: false,
@@ -392,7 +444,6 @@
                         this.cartItems = response.data.cart_items || [];
                         this.calculateCartTotal();
                         
-                        // Feedback visuel
                         this.showToast('Article ajouté au panier!');
                     }
                 } catch (error) {
@@ -445,10 +496,13 @@
                         this.cartTotal = 0;
                         this.phoneNumber = '';
                         
-                        this.showToast('Commande passée avec succès! Votre commande arrive dans ' + response.data.estimated_time + ' minutes');
+                        this.showToast('Commande passée avec succès!');
                         
-                        // Redirection vers une page de confirmation si nécessaire
-                        // this.currentView = 'confirmation';
+                        if (response.data.redirect_url) {
+                            setTimeout(() => {
+                                window.location.href = response.data.redirect_url;
+                            }, 1500);
+                        }
                     } else {
                         this.showToast(response.data.message || 'Erreur lors de la commande', 'error');
                     }
@@ -465,7 +519,6 @@
             },
 
             showToast(message, type = 'success') {
-                // Créer un toast simple (vous pouvez utiliser une librairie plus avancée)
                 const toast = document.createElement('div');
                 toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
                     type === 'success' ? 'bg-green-500' : 'bg-red-500'
@@ -479,6 +532,6 @@
             }
         }
     }
-</script>
+    </script>
 </body>
 </html>

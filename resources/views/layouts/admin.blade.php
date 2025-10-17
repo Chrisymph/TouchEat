@@ -6,6 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin Dashboard - Restaurant</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Charger Chart.js AVANT Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -31,8 +33,6 @@
             </div>
         </div>
     </header>
-
-
 
     <!-- Contenu principal -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
