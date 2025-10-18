@@ -17,12 +17,12 @@
     <div class="bg-white rounded-lg shadow p-6">
         <form @submit.prevent="applyFilters()" class="flex gap-4 items-end">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Date de début</label>
                 <input type="date" x-model="filters.start_date" 
                        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Date de fin</label>
                 <input type="date" x-model="filters.end_date" 
                        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
@@ -38,8 +38,8 @@
         <!-- Carte Chiffre d'affaires -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="p-3 bg-blue-100 rounded-lg">
-                    <span class="text-blue-600 text-xl">💰</span>
+                <div class="w-12 h-15 p-3 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi bi-cash-coin text-orange-600 text-xl"></i>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Chiffre d'affaires</p>
@@ -51,8 +51,8 @@
         <!-- Carte Commandes totales -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="p-3 bg-purple-100 rounded-lg">
-                    <span class="text-purple-600 text-xl">📦</span>
+                <div class="w-12 h-15 p-3 bg-red-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-box-seam text-red-600 text-xl"></i>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Commandes totales</p>
@@ -64,8 +64,8 @@
         <!-- Carte Panier moyen -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="p-3 bg-green-100 rounded-lg">
-                    <span class="text-green-600 text-xl">📈</span>
+                <div class="w-12 h-15 p-3 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-graph-up-arrow text-yellow-600 text-xl"></i>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Panier moyen</p>
@@ -77,8 +77,8 @@
         <!-- Carte Temps moyen -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="p-3 bg-gray-100 rounded-lg">
-                    <span class="text-gray-600 text-xl">⏰</span>
+                <div class="w-12 h-15 p-3 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-clock-history text-black-600 text-xl"></i>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Temps moyen</p>
@@ -93,37 +93,37 @@
         <div class="bg-white rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold flex items-center gap-2">
-                    <span class="text-xl">📊</span>
+                    <i class="bi bi-bar-chart me-2 fs-5" style="color:black"></i>
                     Répartition des commandes
                 </h3>
             </div>
             <div class="p-6 space-y-4">
                 <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-3">
-                        <div class="p-2 bg-blue-100 rounded-full">
-                            <span class="text-blue-600">🍽️</span>
+                        <div class="order-icon me-3 p-2 bg-orange-100 rounded-full w-9 h-9 flex items-center justify-center">
+                           <i class="bi bi-box-seam text-orange-600"></i>
                         </div>
                         <div>
-                            <p class="font-medium">Sur place</p>
+                            <p class="font-bold">Sur place</p>
                             <p class="text-sm text-gray-600">{{ $dineInOrders }} commandes</p>
                         </div>
                     </div>
-                    <span class="px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm font-semibold">
+                    <span class="px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold">
                         {{ $totalOrders > 0 ? round(($dineInOrders / $totalOrders) * 100) : 0 }}%
                     </span>
                 </div>
 
                 <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-3">
-                        <div class="p-2 bg-purple-100 rounded-full">
-                            <span class="text-purple-600">🚚</span>
+                        <div class="order-icon me-3 p-2 bg-red-100 rounded-full w-9 h-9 flex items-center justify-center">
+                           <i class="bi bi-truck text-red-600"></i>
                         </div>
                         <div>
-                            <p class="font-medium">Livraison</p>
+                            <p class="font-bold">Livraison</p>
                             <p class="text-sm text-gray-600">{{ $deliveryOrders }} commandes</p>
                         </div>
                     </div>
-                    <span class="px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm font-semibold">
+                    <span class="px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold">
                         {{ $totalOrders > 0 ? round(($deliveryOrders / $totalOrders) * 100) : 0 }}%
                     </span>
                 </div>
@@ -134,7 +134,7 @@
         <div class="bg-white rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold flex items-center gap-2">
-                    <span class="text-xl">📈</span>
+                    <i class="bi bi-graph-up-arrow me-2 fs-5" style="color:black"></i>
                     Top 5 des articles
                 </h3>
             </div>
@@ -147,11 +147,11 @@
                 <!-- Légende -->
                 <div class="flex items-center justify-center gap-4 text-sm">
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-sm bg-blue-500"></div>
+                        <div class="w-3 h-3 rounded-sm bg-orange-500"></div>
                         <span>Repas</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-sm bg-purple-500"></div>
+                        <div class="w-3 h-3 rounded-sm bg-red-500"></div>
                         <span>Boissons</span>
                     </div>
                 </div>
