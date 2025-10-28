@@ -202,51 +202,103 @@ class AdminController extends Controller
     }
 
     /**
-     * Rapports et statistiques (version AJAX pour le dashboard - CORRIGÉ)
-     */
-    public function reportsAjax(Request $request)
-    {
-        $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
-        $endDate = $request->get('end_date', now()->format('Y-m-d'));
+ * Rapports et statistiques (version AJAX pour le dashboard - CORRIGÉ)
+ */
+public function reportsAjax(Request $request)
+{
+    $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
+    $endDate = $request->get('end_date', now()->format('Y-m-d'));
 
-        // Commandes terminées pour l'analyse
-        $completedOrders = Order::whereBetween('created_at', [$startDate, $endDate])
-            ->whereIn('status', ['terminé', 'livré'])
-            ->with('items')
-            ->get();
+    // ✅ TOUTES les commandes terminées (sans filtre de date)
+    $allCompletedOrders = Order::whereIn('status', ['terminé', 'livré'])
+        ->with('items')
+        ->get();
 
-        // Calcul des statistiques
-        $totalRevenue = $completedOrders->sum('total');
-        $totalOrders = $completedOrders->count();
-        $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
+    // ✅ Commandes de la période pour les autres analyses
+    $completedOrdersForPeriod = Order::whereBetween('created_at', [$startDate, $endDate])
+        ->whereIn('status', ['terminé', 'livré'])
+        ->with('items')
+        ->get();
 
-        // Commandes par type
-        $dineInOrders = $completedOrders->where('order_type', 'sur_place')->count();
-        $deliveryOrders = $completedOrders->where('order_type', 'livraison')->count();
+    // Calcul des statistiques avec TOUTES les commandes
+    $totalRevenue = $allCompletedOrders->sum('total');
+    $totalOrders = $allCompletedOrders->count();
+    $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
 
-        // Performance du menu - CORRECTION
-        $menuPerformance = $this->getMenuPerformance($completedOrders);
-        $topItems = $this->getTopItems($menuPerformance);
+    // Commandes par type (toutes aussi)
+    $dineInOrders = $allCompletedOrders->where('order_type', 'sur_place')->count();
+    $deliveryOrders = $allCompletedOrders->where('order_type', 'livraison')->count();
 
-        // Temps de préparation moyen
-        $avgPreparationTime = $this->getAveragePreparationTime($completedOrders);
+    // Performance du menu (sur la période pour garder l'analyse temporelle)
+    $menuPerformance = $this->getMenuPerformance($completedOrdersForPeriod);
+    $topItems = $this->getTopItems($menuPerformance);
 
-        // Statistiques détaillées
-        $detailedStats = $this->getDetailedStats($startDate, $endDate);
+    // Temps de préparation moyen (toutes commandes)
+    $avgPreparationTime = $this->getAveragePreparationTime($allCompletedOrders);
 
-        return view('admin.reports-content', compact(
-            'totalRevenue',
-            'totalOrders',
-            'avgOrderValue',
-            'dineInOrders',
-            'deliveryOrders',
-            'topItems',
-            'avgPreparationTime',
-            'detailedStats',
-            'startDate',
-            'endDate'
-        ));
-    }
+    // ✅ CORRECTION: Statistiques détaillées avec TOUTES les données (sans filtre de date)
+    $detailedStats = $this->getDetailedStatsAllTime();
+
+    return view('admin.reports-content', compact(
+        'totalRevenue',
+        'totalOrders', 
+        'avgOrderValue',
+        'dineInOrders',
+        'deliveryOrders',
+        'topItems',
+        'avgPreparationTime',
+        'detailedStats',
+        'startDate',
+        'endDate'
+    ));
+}
+
+/**
+ * Statistiques détaillées avec TOUTES les données (sans filtre de date)
+ */
+private function getDetailedStatsAllTime()
+{
+    // ✅ TOUTES les commandes (sans filtre de date)
+    $allOrders = Order::all();
+    $completedOrders = Order::whereIn('status', ['terminé', 'livré'])
+        ->with('items')
+        ->get();
+
+    // Commandes par statut (toutes)
+    $ordersByStatus = [
+        'terminé' => $allOrders->where('status', 'terminé')->count(),
+        'livré' => $allOrders->where('status', 'livré')->count(),
+        'en_cours' => $allOrders->where('status', 'en_cours')->count(),
+        'prêt' => $allOrders->where('status', 'prêt')->count(),
+        'commandé' => $allOrders->where('status', 'commandé')->count(),
+    ];
+
+    // ✅ CORRECTION: Analyse des revenus avec TOUTES les données
+    $revenueAnalysis = [
+        'sur_place' => $completedOrders->where('order_type', 'sur_place')->sum('total'),
+        'livraison' => $completedOrders->where('order_type', 'livraison')->sum('total'),
+    ];
+
+    // ✅ CORRECTION: Performance du menu avec TOUTES les données
+    $menuItems = OrderItem::whereHas('order', function($query) {
+            $query->whereIn('status', ['terminé', 'livré']);
+        })
+        ->select('category', DB::raw('SUM(quantity) as total_quantity'))
+        ->groupBy('category')
+        ->get()
+        ->pluck('total_quantity', 'category');
+
+    $menuPerformance = [
+        'repas' => $menuItems['repas'] ?? 0,
+        'boisson' => $menuItems['boisson'] ?? 0,
+    ];
+
+    return [
+        'ordersByStatus' => $ordersByStatus,
+        'revenueAnalysis' => $revenueAnalysis,
+        'menuPerformance' => $menuPerformance,
+    ];
+}
 
     /**
      * Performance du menu (CORRIGÉ)

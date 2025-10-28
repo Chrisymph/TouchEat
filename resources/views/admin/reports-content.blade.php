@@ -139,10 +139,14 @@
                 </h3>
             </div>
             <div class="p-6 space-y-4">
+
+           
                 <!-- Graphique -->
-                <div class="h-48">
+
+                <div class="relative" style="height: 250px;">
                     <canvas id="reportsChart"></canvas>
                 </div>
+
 
                 <!-- Légende -->
                 <div class="flex items-center justify-center gap-4 text-sm">
@@ -189,49 +193,56 @@
     </div>
 
     <!-- Statistiques détaillées -->
-    <div class="bg-white rounded-lg shadow">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold">Statistiques détaillées</h3>
-        </div>
-        <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="space-y-2">
-                    <h4 class="font-semibold">Commandes par statut</h4>
-                    <div class="space-y-1">
-                        @foreach($detailedStats['ordersByStatus'] as $status => $count)
-                        <div class="flex justify-between text-sm">
-                            <span class="capitalize">{{ str_replace('_', ' ', $status) }}</span>
-                            <span>{{ $count }}</span>
-                        </div>
-                        @endforeach
+<div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold">Statistiques détaillées (Toutes périodes)</h3>
+    </div>
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="space-y-2">
+                <h4 class="font-semibold">Commandes par statut</h4>
+                <div class="space-y-1">
+                    @foreach($detailedStats['ordersByStatus'] as $status => $count)
+                    <div class="flex justify-between text-sm">
+                        <span class="capitalize">{{ str_replace('_', ' ', $status) }}</span>
+                        <span>{{ $count }}</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <h4 class="font-semibold">Analyse des revenus</h4>
+                <div class="space-y-1">
+                    <div class="flex justify-between text-sm">
+                        <span>Revenus sur place</span>
+                        <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'], 0, ',', ' ') }} FCFA</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span>Revenus livraison</span>
+                        <span>{{ number_format($detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-semibold border-t pt-1">
+                        <span>Total général</span>
+                        <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'] + $detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
                     </div>
                 </div>
+            </div>
 
-                <div class="space-y-2">
-                    <h4 class="font-semibold">Analyse des revenus</h4>
-                    <div class="space-y-1">
-                        <div class="flex justify-between text-sm">
-                            <span>Revenus sur place</span>
-                            <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'], 0, ',', ' ') }} FCFA</span>
-                        </div>
-                        <div class="flex justify-between text-sm">
-                            <span>Revenus livraison</span>
-                            <span>{{ number_format($detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
-                        </div>
+            <div class="space-y-2">
+                <h4 class="font-semibold">Performance menu</h4>
+                <div class="space-y-1">
+                    <div class="flex justify-between text-sm">
+                        <span>Articles repas vendus</span>
+                        <span>{{ $detailedStats['menuPerformance']['repas'] }}</span>
                     </div>
-                </div>
-
-                <div class="space-y-2">
-                    <h4 class="font-semibold">Performance menu</h4>
-                    <div class="space-y-1">
-                        <div class="flex justify-between text-sm">
-                            <span>Articles repas vendus</span>
-                            <span>{{ $detailedStats['menuPerformance']['repas'] }}</span>
-                        </div>
-                        <div class="flex justify-between text-sm">
-                            <span>Boissons vendues</span>
-                            <span>{{ $detailedStats['menuPerformance']['boisson'] }}</span>
-                        </div>
+                    <div class="flex justify-between text-sm">
+                        <span>Boissons vendues</span>
+                        <span>{{ $detailedStats['menuPerformance']['boisson'] }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-semibold border-t pt-1">
+                        <span>Total articles</span>
+                        <span>{{ $detailedStats['menuPerformance']['repas'] + $detailedStats['menuPerformance']['boisson'] }}</span>
                     </div>
                 </div>
             </div>
@@ -240,7 +251,8 @@
 </div>
 
 <script>
-function reportsComponent() {
+// ✅ DÉCLARER LA FONCTION GLOBALEMENT pour qu'Alpine.js puisse la trouver
+window.reportsComponent = function() {
     return {
         filters: {
             start_date: '{{ $startDate }}',
@@ -249,51 +261,55 @@ function reportsComponent() {
         chart: null,
         
         init() {
-            // Attendre que le DOM soit complètement chargé
+            console.log('✅ Initialisation du composant rapports...');
+            console.log('📊 Chart.js disponible:', typeof Chart !== 'undefined');
+            console.log('📈 Données disponibles:', @json($topItems));
+            
+            // Attendre que le DOM soit complètement rendu
             this.$nextTick(() => {
-                this.renderChart();
+                setTimeout(() => {
+                    this.renderChart();
+                }, 100);
             });
         },
         
         async applyFilters() {
-            try {
-                const params = new URLSearchParams({
-                    start_date: this.filters.start_date,
-                    end_date: this.filters.end_date
-                });
+    try {
+        console.log('🔄 Application des filtres:', this.filters);
+        
+        const params = new URLSearchParams({
+            start_date: this.filters.start_date,
+            end_date: this.filters.end_date
+        });
 
-                // Recharger le contenu via AJAX
-                const response = await fetch(`/admin/reports/ajax?${params}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                if (response.ok) {
-                    const html = await response.text();
-                    // Remplacer le contenu des rapports
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = html;
-                    
-                    // Mettre à jour les données et re-rendre le graphique
-                    const newReportsContent = tempDiv.querySelector('[x-data="reportsComponent()"]');
-                    if (newReportsContent) {
-                        this.$el.innerHTML = newReportsContent.innerHTML;
-                        // Réinitialiser le graphique
-                        if (this.chart) {
-                            this.chart.destroy();
-                        }
-                        this.renderChart();
-                    }
-                } else {
-                    alert('Erreur lors du chargement des données');
-                }
-                
-            } catch (error) {
-                console.error('Erreur lors du filtrage:', error);
-                alert('Erreur lors de l\'application des filtres');
+        // Recharger le contenu via AJAX
+        const response = await fetch(`/admin/reports/ajax?${params}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
             }
-        },
+        });
+
+        if (response.ok) {
+            const html = await response.text();
+            console.log('✅ Données rechargées avec succès');
+            
+            // Remplacer tout le contenu du composant
+            this.$el.outerHTML = html;
+            
+            // Réinitialiser Alpine.js sur le nouveau contenu
+            Alpine.initTree(this.$el);
+            
+        } else {
+            console.error('❌ Erreur HTTP:', response.status);
+            alert('Erreur lors du chargement des données');
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur lors du filtrage:', error);
+        alert('Erreur lors de l\'application des filtres');
+    }
+},
         
         async saveReport() {
             try {
@@ -318,28 +334,33 @@ function reportsComponent() {
                 }
                 
             } catch (error) {
-                console.error('Erreur lors de la sauvegarde:', error);
+                console.error('❌ Erreur lors de la sauvegarde:', error);
                 alert('❌ Erreur réseau lors de la sauvegarde');
             }
         },
         
         renderChart() {
+            console.log('🎨 Tentative de rendu du graphique...');
             const ctx = document.getElementById('reportsChart');
+            
             if (!ctx) {
-                console.error('Canvas pour le graphique non trouvé');
+                console.error('❌ Canvas pour le graphique non trouvé');
                 return;
             }
             
             const topItems = @json($topItems);
+            console.log('📊 Données pour le graphique:', topItems);
+            
+            // Vérifier que Chart.js est disponible
+            if (typeof Chart === 'undefined') {
+                console.error('❌ Chart.js non disponible');
+                this.showChartError(ctx, 'Chart.js non chargé');
+                return;
+            }
             
             // Si pas de données, afficher un message
             if (topItems.length === 0) {
-                ctx.parentElement.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <div class="text-4xl mb-2">📊</div>
-                        <p>Aucune donnée disponible pour le graphique</p>
-                    </div>
-                `;
+                this.showChartError(ctx, 'Aucune donnée disponible pour le graphique');
                 return;
             }
             
@@ -348,88 +369,121 @@ function reportsComponent() {
                 this.chart.destroy();
             }
             
-            const colors = topItems.map(item => 
-                item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
-            );
-
-            this.chart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: topItems.map(item => item.name),
-                    datasets: [{
-                        label: 'Revenus (FCFA)',
-                        data: topItems.map(item => item.totalRevenue),
-                        backgroundColor: colors,
-                        borderColor: colors.map(color => color.replace('rgb', 'rgba').replace(')', ', 0.8)')),
-                        borderWidth: 2,
-                        borderRadius: 4,
-                        borderSkipped: false,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            grid: {
-                                display: false
+            try {
+                this.chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: topItems.map(item => item.name),
+                        datasets: [{
+                            label: 'Revenus (FCFA)',
+                            data: topItems.map(item => item.totalRevenue),
+                            backgroundColor: topItems.map(item => 
+                                item.category === 'repas' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(147, 51, 234, 0.8)'
+                            ),
+                            borderColor: topItems.map(item =>
+                                item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
+                            ),
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
                             },
-                            ticks: {
-                                maxRotation: 45,
-                                minRotation: 45,
-                                font: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('fr-FR') + ' FCFA';
+                                    },
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleFont: {
+                                    size: 12
+                                },
+                                bodyFont: {
                                     size: 11
+                                },
+                                callbacks: {
+                                    label: function(context) {
+                                        const item = topItems[context.dataIndex];
+                                        return [
+                                            `Revenus: ${item.totalRevenue.toLocaleString('fr-FR')} FCFA`,
+                                            `Quantité: ${item.totalQuantity} vendus`,
+                                            `Commandes: ${item.orders}`
+                                        ];
+                                    }
                                 }
+                            },
+                            legend: {
+                                display: false
                             }
                         },
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.1)'
-                            },
-                            ticks: {
-                                callback: function(value) {
-                                    return value.toLocaleString('fr-FR') + ' FCFA';
-                                }
-                            }
+                        animation: {
+                            duration: 1000,
+                            easing: 'easeInOutQuart'
                         }
-                    },
-                    plugins: {
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleFont: {
-                                size: 12
-                            },
-                            bodyFont: {
-                                size: 11
-                            },
-                            callbacks: {
-                                label: function(context) {
-                                    const item = topItems[context.dataIndex];
-                                    return [
-                                        `Revenus: ${item.totalRevenue.toLocaleString('fr-FR')} FCFA`,
-                                        `Quantité: ${item.totalQuantity} vendus`,
-                                        `Commandes: ${item.orders}`
-                                    ];
-                                }
-                            }
-                        },
-                        legend: {
-                            display: false
-                        }
-                    },
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeInOutQuart'
                     }
-                }
-            });
+                });
+                
+                console.log('✅ Graphique créé avec succès!');
+                
+            } catch (error) {
+                console.error('❌ Erreur lors de la création du graphique:', error);
+                this.showChartError(ctx, 'Erreur: ' + error.message);
+            }
+        },
+        
+        showChartError(ctx, message) {
+            ctx.parentElement.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <div class="text-4xl mb-2">📊</div>
+                    <p>${message}</p>
+                    <p class="text-sm mt-2">Vérifiez la console pour plus de détails</p>
+                </div>
+            `;
         }
     }
 }
 
-// S'assurer que Chart.js est chargé avant d'initialiser
+// ✅ S'assurer qu'Alpine.js connaît le composant
 document.addEventListener('alpine:init', () => {
-    // Alpine est initialisé, le composant sera créé automatiquement
+    console.log('✅ Alpine.js initialisé - reportsComponent prêt');
+    
+    // Vérifier que Chart.js est disponible
+    if (typeof Chart === 'undefined') {
+        console.error('❌ Chart.js non disponible au moment de l\'initialisation Alpine');
+    } else {
+        console.log('✅ Chart.js disponible au moment de l\'initialisation Alpine');
+    }
+});
+
+// ✅ Réinitialiser après chargement AJAX
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ DOM chargé - vérification des composants...');
 });
 </script>

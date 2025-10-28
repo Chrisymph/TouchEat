@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin Dashboard - Restaurant</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Charger Chart.js AVANT Alpine.js -->
+    <!-- Chart.js chargé en premier -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
@@ -71,6 +71,15 @@
         function confirmAction(message) {
             return confirm(message);
         }
+
+        // Vérifier que Chart.js est bien chargé
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js non chargé correctement');
+            } else {
+                console.log('Chart.js prêt');
+            }
+        });
     </script>
 </body>
 </html>
