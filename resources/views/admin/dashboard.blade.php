@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('content')
-<div x-data="dashboardComponent" x-ref="dashboard">
+<div x-data="dashboardComponent()" x-init="init()" x-ref="dashboard">
     <!-- Onglets -->
     <div class="mb-6">
         <div class="border-b border-gray-200">
@@ -20,6 +20,11 @@
                         :class="activeTab === 'menu' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
                         class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     Menu
+                </button>
+                <button @click="switchTab('clients')" 
+                        :class="activeTab === 'clients' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                    Clients
                 </button>
                 <button @click="switchTab('reports')" 
                         :class="activeTab === 'reports' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
@@ -121,7 +126,7 @@
         </div>
 
         <!-- Actions rapides -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <button @click="switchTab('orders')" 
                class="bg-orange-600 text-white rounded-lg p-6 text-center hover:bg-orange-700 transition-colors">
                 <div class="space-y-2">
@@ -138,6 +143,14 @@
                 </div>
             </button>
 
+            <button @click="switchTab('clients')" 
+               class="bg-purple-600 text-white rounded-lg p-6 text-center hover:bg-purple-700 transition-colors">
+                <div class="space-y-2">
+                    <div class="text-3xl">👥</div>
+                    <div class="text-lg font-semibold">Gérer les Clients</div>
+                </div>
+            </button>
+
             <button @click="switchTab('reports')" 
                class="bg-blue-600 text-white rounded-lg p-6 text-center hover:bg-blue-700 transition-colors">
                 <div class="space-y-2">
@@ -149,18 +162,31 @@
     </div>
 
     <!-- Onglet Commandes (chargement AJAX) -->
-    <div x-show="activeTab === 'orders' && !loading && !error" id="orders-container">
-        <div x-html="ordersContent"></div>
+    <div x-show="activeTab === 'orders'" id="orders-container">
+        <template x-if="!loading && !error">
+            <div x-html="ordersContent"></div>
+        </template>
     </div>
 
     <!-- Onglet Menu (chargement AJAX) -->
-    <div x-show="activeTab === 'menu' && !loading && !error" id="menu-container">
-        <div x-html="menuContent"></div>
+    <div x-show="activeTab === 'menu'" id="menu-container">
+        <template x-if="!loading && !error">
+            <div x-html="menuContent"></div>
+        </template>
+    </div>
+
+    <!-- Onglet Clients (chargement AJAX) -->
+    <div x-show="activeTab === 'clients'" id="clients-container">
+        <template x-if="!loading && !error">
+            <div x-html="clientsContent"></div>
+        </template>
     </div>
 
     <!-- Onglet Rapports (chargement AJAX) -->
-    <div x-show="activeTab === 'reports' && !loading && !error" id="reports-container">
-        <div x-html="reportsContent"></div>
+    <div x-show="activeTab === 'reports'" id="reports-container">
+        <template x-if="!loading && !error">
+            <div x-html="reportsContent"></div>
+        </template>
     </div>
 
     <!-- Indicateur de chargement -->
@@ -169,12 +195,9 @@
         <p class="text-lg text-gray-600">Chargement du contenu...</p>
     </div>
 
-    <!-- Message d'erreur -->
+    <!-- Messages d'erreur -->
     <div x-show="activeTab === 'orders' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
         <p class="font-semibold">Erreur lors du chargement des commandes.</p>
-        <p class="mt-2">
-            <a href="{{ route('admin.orders') }}" class="underline font-semibold">Accéder à la page complète</a>
-        </p>
         <button @click="loadOrders()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
             Réessayer
         </button>
@@ -182,19 +205,20 @@
 
     <div x-show="activeTab === 'menu' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
         <p class="font-semibold">Erreur lors du chargement du menu.</p>
-        <p class="mt-2">
-            <a href="{{ route('admin.menu') }}" class="underline font-semibold">Accéder à la page complète</a>
-        </p>
         <button @click="loadMenu()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+            Réessayer
+        </button>
+    </div>
+
+    <div x-show="activeTab === 'clients' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <p class="font-semibold">Erreur lors du chargement des clients.</p>
+        <button @click="loadClients()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
             Réessayer
         </button>
     </div>
 
     <div x-show="activeTab === 'reports' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
         <p class="font-semibold">Erreur lors du chargement des rapports.</p>
-        <p class="mt-2">
-            <a href="{{ route('admin.reports') }}" class="underline font-semibold">Accéder à la page complète</a>
-        </p>
         <button @click="loadReports()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
             Réessayer
         </button>
@@ -446,11 +470,45 @@
                         class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
                     Fermer
                 </button>
-                <!-- Le bouton "Voir la page complète" est caché car vous n'avez pas la vue -->
-                <a href="#" id="modalFullDetailsLink" style="display: none;"
-                   class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                    Voir la page complète
-                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour ajouter des clients -->
+<div id="addClientModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Ajouter des Clients</h3>
+                <button type="button" onclick="closeAddClientModal()" 
+                        class="text-gray-400 hover:text-gray-600 text-2xl">
+                    &times;
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            <!-- Liste des clients disponibles -->
+            <div class="space-y-4" id="availableClientsList">
+                <!-- Le contenu sera chargé dynamiquement -->
+            </div>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 bg-gray-50">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600" id="selectedCount">0 client(s) sélectionné(s)</span>
+                <div class="flex space-x-3">
+                    <button type="button" onclick="closeAddClientModal()" 
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors duration-300">
+                        Annuler
+                    </button>
+                    <button type="button" onclick="linkSelectedClients()" 
+                            id="linkClientsButton"
+                            class="px-4 py-2 bg-blue-400 text-white rounded-lg font-semibold transition-all duration-300 cursor-not-allowed">
+                        Lier 0 client(s)
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -462,15 +520,9 @@ window.dashboardComponent = null;
 
 // Fonctions pour le modal de temps
 function openTimeModal(orderId) {
-    console.log('🟢 OUVERTURE du modal pour la commande:', orderId);
-    
-    // Mettre à jour l'ID de commande dans le formulaire
     document.getElementById('timeOrderId').value = orderId;
-    
-    // Afficher le modal
     document.getElementById('timeModal').style.display = 'flex';
     
-    // Focus sur le champ de temps
     setTimeout(() => {
         const timeInput = document.getElementById('estimatedTime');
         timeInput.focus();
@@ -479,325 +531,7 @@ function openTimeModal(orderId) {
 }
 
 function closeTimeModal() {
-    console.log('🔴 FERMETURE du modal');
     document.getElementById('timeModal').style.display = 'none';
-}
-
-// Fonctions pour le modal des détails de commande (VERSION CORRIGÉE)
-function openOrderDetailsModal(orderId) {
-    console.log('📋 Ouverture du modal pour la commande:', orderId);
-    
-    // Afficher le modal avec un indicateur de chargement
-    document.getElementById('orderDetailsModal').style.display = 'flex';
-    document.getElementById('modalOrderId').textContent = orderId;
-    document.getElementById('modalOrderItems').innerHTML = `
-        <div class="text-center py-4">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p class="text-gray-600 mt-2">Chargement des détails...</p>
-        </div>
-    `;
-    
-    // URL CORRECTE - utilisez la route avec /ajax
-    const apiUrl = `/admin/orders/${orderId}/ajax`;
-    console.log('🔗 Appel de l\'API:', apiUrl);
-    
-    // Charger les détails de la commande via l'API JSON
-    fetch(apiUrl)
-        .then(response => {
-            console.log('📥 Réponse reçue, statut:', response.status);
-            if (!response.ok) {
-                throw new Error('Erreur HTTP: ' + response.status + ' - URL: ' + apiUrl);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('✅ Données reçues:', data);
-            if (data.success) {
-                populateOrderModalWithJSON(data.order, orderId);
-            } else {
-                throw new Error(data.message || 'Erreur inconnue du serveur');
-            }
-        })
-        .catch(error => {
-            console.error('❌ Erreur lors du chargement des détails:', error);
-            document.getElementById('modalOrderItems').innerHTML = `
-                <div class="text-center py-4 text-red-600">
-                    ❌ ${error.message || 'Erreur lors du chargement des détails'}
-                    <br><small>Vérifiez que la commande existe</small>
-                </div>
-            `;
-        });
-}
-
-// Fonction pour remplir le modal avec les données JSON
-function populateOrderModalWithJSON(orderData, orderId) {
-    console.log('🎨 Remplissage du modal avec:', orderData);
-    
-    // Remplir les informations de base
-    document.getElementById('modalOrderId').textContent = orderData.id || orderId;
-    document.getElementById('modalTableNumber').textContent = orderData.table_number || 'N/A';
-    document.getElementById('modalOrderType').textContent = orderData.order_type ? 
-        orderData.order_type.charAt(0).toUpperCase() + orderData.order_type.slice(1) : 'Sur place';
-    document.getElementById('modalOrderStatus').textContent = orderData.status ? 
-        orderData.status.charAt(0).toUpperCase() + orderData.status.slice(1) : 'Commandé';
-    document.getElementById('modalPaymentStatus').textContent = orderData.payment_status || 'Non payé';
-    document.getElementById('modalCustomerPhone').textContent = orderData.customer_phone || 'Non renseigné';
-    document.getElementById('modalOrderDate').textContent = orderData.created_at || 'N/A';
-    document.getElementById('modalEstimatedTime').textContent = orderData.estimated_time || 'Non défini';
-    document.getElementById('modalOrderTotal').textContent = orderData.total || '0 FCFA';
-    
-    // Remplir les articles
-    const itemsContainer = document.getElementById('modalOrderItems');
-    if (orderData.items && orderData.items.length > 0) {
-        itemsContainer.innerHTML = orderData.items.map(item => `
-            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <div class="flex items-center space-x-3">
-                    <span class="font-medium text-gray-800">${item.name}</span>
-                    <span class="text-gray-600 text-sm bg-white px-2 py-1 rounded border">
-                        x${item.quantity}
-                    </span>
-                </div>
-                <div class="text-right">
-                    <span class="font-semibold text-gray-800">
-                        ${(item.total).toLocaleString('fr-FR')} FCFA
-                    </span>
-                    <p class="text-sm text-gray-500">
-                        ${item.price.toLocaleString('fr-FR')} FCFA l'unité
-                    </p>
-                </div>
-            </div>
-        `).join('');
-    } else {
-        itemsContainer.innerHTML = `
-            <div class="text-center py-4 text-gray-500">
-                Aucun article trouvé dans cette commande
-            </div>
-        `;
-    }
-    
-    // Cacher le lien "Voir la page complète" puisque vous n'avez pas la vue
-    document.getElementById('modalFullDetailsLink').style.display = 'none';
-    
-    console.log('✅ Modal rempli avec succès');
-}
-
-// Fonction pour fermer le modal des détails
-function closeOrderDetailsModal() {
-    document.getElementById('orderDetailsModal').style.display = 'none';
-}
-
-// Fonctions globales pour les modaux
-function globalOpenAddModal() {
-    // Réinitialiser le formulaire
-    document.getElementById('globalMenuForm').reset();
-    document.getElementById('globalModalTitle').textContent = 'Ajouter un nouvel article';
-    document.getElementById('globalSubmitText').textContent = 'Ajouter l\'article';
-    document.getElementById('globalMethodField').innerHTML = '';
-    document.getElementById('globalMenuForm').action = '{{ route("admin.menu.add") }}';
-    
-    // Afficher le modal
-    document.getElementById('globalAddModal').style.display = 'flex';
-}
-
-function globalCloseModal() {
-    document.getElementById('globalAddModal').style.display = 'none';
-}
-
-// Fonctions pour les promotions
-function openPromotionModal(item) {
-    console.log('Opening promotion modal for:', item);
-    document.getElementById('promotionItemName').textContent = item.name;
-    document.getElementById('promotionCurrentPrice').textContent = item.price + ' FCFA';
-    document.getElementById('promotionOriginalPrice').value = item.price;
-    document.getElementById('promotionItemId').value = item.id;
-    document.getElementById('promotionDiscount').value = '';
-    document.getElementById('promotionNewPrice').textContent = '- FCFA';
-    
-    // Afficher le modal
-    document.getElementById('promotionModal').style.display = 'flex';
-}
-
-function closePromotionModal() {
-    document.getElementById('promotionModal').style.display = 'none';
-}
-
-// Fonctions globales pour les boutons du menu
-function handleEditItem(item) {
-    // Remplir le formulaire avec les données de l'article
-    document.getElementById('globalItemName').value = item.name;
-    document.getElementById('globalItemDescription').value = item.description;
-    document.getElementById('globalItemPrice').value = item.price;
-    document.getElementById('globalItemCategory').value = item.category;
-    document.getElementById('globalItemAvailable').checked = item.available;
-    
-    // Changer le titre et l'action
-    document.getElementById('globalModalTitle').textContent = 'Modifier l\'article';
-    document.getElementById('globalSubmitText').textContent = 'Sauvegarder';
-    document.getElementById('globalMethodField').innerHTML = '<input type="hidden" name="_method" value="PUT">';
-    document.getElementById('globalMenuForm').action = `{{ url('admin/menu') }}/${item.id}`;
-    
-    // Afficher le modal
-    document.getElementById('globalAddModal').style.display = 'flex';
-}
-
-function handleAddPromotion(itemId) {
-    console.log('🎯 handleAddPromotion appelée avec ID:', itemId);
-    
-    // Méthode simple et directe - récupérer via une requête API
-    fetch(`/admin/menu/${itemId}/ajax`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Erreur HTTP: ' + response.status);
-            }
-            return response.json();
-        })
-        .then(item => {
-            console.log('✅ Données récupérées:', item);
-            
-            // Vérifier que nous avons bien les données
-            if (!item || !item.name || !item.price) {
-                throw new Error('Données incomplètes reçues');
-            }
-            
-            openPromotionModal(item);
-        })
-        .catch(error => {
-            console.error('❌ Erreur lors de la récupération:', error);
-            
-            // Fallback: essayer de récupérer depuis le DOM
-            console.log('🔄 Tentative de récupération depuis le DOM...');
-            
-            const buttons = document.querySelectorAll('button');
-            let targetButton = null;
-            
-            for (let button of buttons) {
-                const onclickAttr = button.getAttribute('onclick');
-                if (onclickAttr && onclickAttr.includes(`handleAddPromotion(${itemId})`)) {
-                    targetButton = button;
-                    break;
-                }
-            }
-            
-            if (targetButton) {
-                const card = targetButton.closest('.bg-white');
-                if (card) {
-                    const nameElement = card.querySelector('h3');
-                    const priceElement = card.querySelector('.text-lg.font-bold');
-                    
-                    if (nameElement && priceElement) {
-                        const name = nameElement.textContent.trim();
-                        const priceText = priceElement.textContent.trim();
-                        const price = parseFloat(priceText.replace(/[^\d,]/g, '').replace(',', ''));
-                        
-                        if (!isNaN(price)) {
-                            const item = { id: itemId, name: name, price: price };
-                            console.log('✅ Données récupérées depuis DOM:', item);
-                            openPromotionModal(item);
-                            return;
-                        }
-                    }
-                }
-            }
-            
-            alert('❌ Erreur: Impossible de charger les données de l\'article (ID: ' + itemId + '). Veuillez réessayer.');
-        });
-}
-
-function handleRemovePromotion(itemId) {
-    if (confirm('Êtes-vous sûr de vouloir retirer la promotion ?')) {
-        fetch(`{{ url('admin/menu') }}/${itemId}/promotion`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                alert('✅ Promotion retirée!');
-                // Recharger le menu
-                if (window.dashboardComponent) {
-                    window.dashboardComponent.loadMenu();
-                }
-            } else {
-                alert('❌ Erreur: ' + result.message);
-            }
-        })
-        .catch(error => {
-            console.error('Erreur:', error);
-            alert('❌ Erreur réseau');
-        });
-    }
-}
-
-function handleToggleAvailability(itemId) {
-    fetch(`{{ url('admin/menu') }}/${itemId}/toggle`, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            // Recharger le menu
-            if (window.dashboardComponent) {
-                window.dashboardComponent.loadMenu();
-            }
-        } else {
-            alert('❌ Erreur: ' + result.message);
-            // Recharger pour remettre le checkbox dans le bon état
-            if (window.dashboardComponent) {
-                window.dashboardComponent.loadMenu();
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Erreur:', error);
-        alert('❌ Erreur réseau');
-    });
-}
-
-// Fonction pour supprimer un article
-function handleDeleteItem(itemId) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet article ? Cette action est irréversible.')) {
-        console.log('🗑️ Suppression de l\'article ID:', itemId);
-        
-        fetch(`{{ url('admin/menu') }}/${itemId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Erreur HTTP: ' + response.status);
-            }
-            return response.json();
-        })
-        .then(result => {
-            if (result.success) {
-                console.log('✅ Suppression réussie:', result.message);
-                
-                // Afficher un message de succès
-                alert('✅ ' + result.message);
-                
-                // Recharger le contenu du menu sans quitter l'onglet
-                if (window.dashboardComponent) {
-                    window.dashboardComponent.loadMenu();
-                }
-            } else {
-                throw new Error(result.message);
-            }
-        })
-        .catch(error => {
-            console.error('❌ Erreur lors de la suppression:', error);
-            alert('❌ Erreur lors de la suppression: ' + error.message);
-        });
-    }
 }
 
 // Gestion de la soumission du formulaire de temps
@@ -840,7 +574,7 @@ document.getElementById('timeForm').addEventListener('submit', function(e) {
             closeTimeModal();
             
             // Afficher un message de succès
-            alert('✅ ' + result.message);
+            showToast('✅ ' + result.message, 'success');
             
             // Recharger les commandes
             if (window.dashboardComponent) {
@@ -852,7 +586,7 @@ document.getElementById('timeForm').addEventListener('submit', function(e) {
     })
     .catch(error => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur: ' + error.message);
+        showToast('❌ Erreur: ' + error.message, 'error');
     })
     .finally(() => {
         // Restaurer le bouton
@@ -860,6 +594,102 @@ document.getElementById('timeForm').addEventListener('submit', function(e) {
         submitButton.disabled = false;
     });
 });
+
+// Fonctions pour le modal des détails de commande
+function openOrderDetailsModal(orderId) {
+    document.getElementById('orderDetailsModal').style.display = 'flex';
+    document.getElementById('modalOrderId').textContent = orderId;
+    document.getElementById('modalOrderItems').innerHTML = `
+        <div class="text-center py-4">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p class="text-gray-600 mt-2">Chargement des détails...</p>
+        </div>
+    `;
+    
+    const apiUrl = `/admin/orders/${orderId}/ajax`;
+    
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur HTTP: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                populateOrderModalWithJSON(data.order, orderId);
+            } else {
+                throw new Error(data.message || 'Erreur inconnue du serveur');
+            }
+        })
+        .catch(error => {
+            document.getElementById('modalOrderItems').innerHTML = `
+                <div class="text-center py-4 text-red-600">
+                    ❌ ${error.message || 'Erreur lors du chargement des détails'}
+                </div>
+            `;
+        });
+}
+
+function populateOrderModalWithJSON(orderData, orderId) {
+    document.getElementById('modalOrderId').textContent = orderData.id || orderId;
+    document.getElementById('modalTableNumber').textContent = orderData.table_number || 'N/A';
+    document.getElementById('modalOrderType').textContent = orderData.order_type ? 
+        orderData.order_type.charAt(0).toUpperCase() + orderData.order_type.slice(1) : 'Sur place';
+    document.getElementById('modalOrderStatus').textContent = orderData.status ? 
+        orderData.status.charAt(0).toUpperCase() + orderData.status.slice(1) : 'Commandé';
+    document.getElementById('modalPaymentStatus').textContent = orderData.payment_status || 'Non payé';
+    document.getElementById('modalCustomerPhone').textContent = orderData.customer_phone || 'Non renseigné';
+    document.getElementById('modalOrderDate').textContent = orderData.created_at || 'N/A';
+    document.getElementById('modalEstimatedTime').textContent = orderData.estimated_time || 'Non défini';
+    document.getElementById('modalOrderTotal').textContent = orderData.total || '0 FCFA';
+    
+    const itemsContainer = document.getElementById('modalOrderItems');
+    if (orderData.items && orderData.items.length > 0) {
+        itemsContainer.innerHTML = orderData.items.map(item => `
+            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center space-x-3">
+                    <span class="font-medium text-gray-800">${item.name}</span>
+                    <span class="text-gray-600 text-sm bg-white px-2 py-1 rounded border">
+                        x${item.quantity}
+                    </span>
+                </div>
+                <div class="text-right">
+                    <span class="font-semibold text-gray-800">
+                        ${(item.total).toLocaleString('fr-FR')} FCFA
+                    </span>
+                    <p class="text-sm text-gray-500">
+                        ${item.price.toLocaleString('fr-FR')} FCFA l'unité
+                    </p>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        itemsContainer.innerHTML = `
+            <div class="text-center py-4 text-gray-500">
+                Aucun article trouvé dans cette commande
+            </div>
+        `;
+    }
+}
+
+function closeOrderDetailsModal() {
+    document.getElementById('orderDetailsModal').style.display = 'none';
+}
+
+// Fonctions globales pour les modaux
+function globalOpenAddModal() {
+    document.getElementById('globalMenuForm').reset();
+    document.getElementById('globalModalTitle').textContent = 'Ajouter un nouvel article';
+    document.getElementById('globalSubmitText').textContent = 'Ajouter l\'article';
+    document.getElementById('globalMethodField').innerHTML = '';
+    document.getElementById('globalMenuForm').action = '{{ route("admin.menu.add") }}';
+    document.getElementById('globalAddModal').style.display = 'flex';
+}
+
+function globalCloseModal() {
+    document.getElementById('globalAddModal').style.display = 'none';
+}
 
 // Gestion de la soumission du formulaire global
 document.getElementById('globalMenuForm').addEventListener('submit', async function(e) {
@@ -906,7 +736,7 @@ document.getElementById('globalMenuForm').addEventListener('submit', async funct
             globalCloseModal();
             
             // Afficher message de succès
-            alert('✅ ' + result.message);
+            showToast('✅ ' + result.message, 'success');
             
             // Recharger le contenu du menu après un délai
             setTimeout(() => {
@@ -917,18 +747,33 @@ document.getElementById('globalMenuForm').addEventListener('submit', async funct
             
         } else {
             // Erreur
-            alert('❌ ' + result.message);
+            showToast('❌ ' + result.message, 'error');
         }
         
     } catch (error) {
         console.error('Erreur réseau:', error);
-        alert('❌ Erreur réseau lors de la sauvegarde: ' + error.message);
+        showToast('❌ Erreur réseau lors de la sauvegarde: ' + error.message, 'error');
     } finally {
         // Restaurer le bouton
         submitButton.innerHTML = originalText;
         submitButton.disabled = false;
     }
 });
+
+// Fonctions pour les promotions
+function openPromotionModal(item) {
+    document.getElementById('promotionItemName').textContent = item.name;
+    document.getElementById('promotionCurrentPrice').textContent = item.price + ' FCFA';
+    document.getElementById('promotionOriginalPrice').value = item.price;
+    document.getElementById('promotionItemId').value = item.id;
+    document.getElementById('promotionDiscount').value = '';
+    document.getElementById('promotionNewPrice').textContent = '- FCFA';
+    document.getElementById('promotionModal').style.display = 'flex';
+}
+
+function closePromotionModal() {
+    document.getElementById('promotionModal').style.display = 'none';
+}
 
 // Calcul du nouveau prix en temps réel pour les promotions
 document.getElementById('promotionDiscount').addEventListener('input', function(e) {
@@ -957,7 +802,7 @@ document.getElementById('promotionForm').addEventListener('submit', async functi
     
     try {
         const itemId = document.getElementById('promotionItemId').value;
-        const response = await fetch(`{{ url('admin/menu') }}/${itemId}/promotion`, {
+        const response = await fetch(`/admin/menu/${itemId}/promotion`, {
             method: 'POST',
             body: formData,
             headers: {
@@ -970,119 +815,300 @@ document.getElementById('promotionForm').addEventListener('submit', async functi
         
         if (result.success) {
             closePromotionModal();
-            alert('✅ ' + result.message);
+            showToast('✅ ' + result.message, 'success');
             
             // Recharger le menu
             if (window.dashboardComponent) {
                 window.dashboardComponent.loadMenu();
             }
         } else {
-            alert('❌ ' + result.message);
+            showToast('❌ ' + result.message, 'error');
         }
         
     } catch (error) {
         console.error('Erreur:', error);
-        alert('❌ Erreur réseau lors de l\'application de la promotion');
+        showToast('❌ Erreur réseau lors de l\'application de la promotion', 'error');
     } finally {
         submitButton.innerHTML = originalText;
         submitButton.disabled = false;
     }
 });
 
-// Fermer les modaux en cliquant à l'extérieur
-document.getElementById('timeModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeTimeModal();
-    }
-});
+// Fonctions pour le modal clients - VERSION CORRIGÉE
+function openAddClientModal() {
+    console.log('Ouverture du modal clients');
+    document.getElementById('addClientModal').style.display = 'flex';
+    
+    // Charger les clients disponibles
+    fetch('/admin/clients/available')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur HTTP: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const container = document.getElementById('availableClientsList');
+            if (data.success && data.clients && data.clients.length > 0) {
+                container.innerHTML = data.clients.map(client => `
+                    <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                        <div class="flex items-center space-x-4">
+                            <input type="checkbox" 
+                                   value="${client.id}" 
+                                   class="client-checkbox w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            
+                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span class="text-blue-600 font-semibold text-sm">${client.name ? client.name.substring(0, 2).toUpperCase() : 'CL'}</span>
+                            </div>
+                            
+                            <div>
+                                <h4 class="font-semibold text-gray-800">${client.name || 'Client sans nom'}</h4>
+                                <p class="text-sm text-gray-500">${client.email || 'Aucun email'}</p>
+                                <p class="text-xs text-gray-400">Table #${client.table_number || 'N/A'}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="text-right">
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ${client.is_suspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                                ${client.is_suspended ? 'Suspendu' : 'Actif'}
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-6xl mb-4 text-gray-300">👥</div>
+                        <h3 class="text-xl font-semibold text-gray-500 mb-2">Aucun client disponible</h3>
+                        <p class="text-gray-400">Tous les clients sont déjà liés à votre compte</p>
+                    </div>
+                `;
+            }
+            
+            // Réinitialiser les sélections
+            updateSelectedCount();
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            document.getElementById('availableClientsList').innerHTML = `
+                <div class="text-center py-8 text-red-600">
+                    Erreur lors du chargement des clients: ${error.message}
+                </div>
+            `;
+        });
+}
 
-document.getElementById('globalAddModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        globalCloseModal();
-    }
-});
+function closeAddClientModal() {
+    document.getElementById('addClientModal').style.display = 'none';
+}
 
-document.getElementById('promotionModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closePromotionModal();
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.client-checkbox:checked');
+    const count = checkboxes.length;
+    const button = document.getElementById('linkClientsButton');
+    const counter = document.getElementById('selectedCount');
+    
+    counter.textContent = `${count} client(s) sélectionné(s)`;
+    
+    if (count > 0) {
+        button.textContent = `Lier ${count} client(s)`;
+        button.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-300';
+        button.disabled = false;
+    } else {
+        button.textContent = 'Lier 0 client(s)';
+        button.className = 'px-4 py-2 bg-blue-400 text-white rounded-lg font-semibold transition-all duration-300 cursor-not-allowed';
+        button.disabled = true;
     }
-});
+}
 
-document.getElementById('orderDetailsModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeOrderDetailsModal();
+async function linkSelectedClients() {
+    const checkboxes = document.querySelectorAll('.client-checkbox:checked');
+    const clientIds = Array.from(checkboxes).map(checkbox => checkbox.value);
+    
+    if (clientIds.length === 0) return;
+
+    const button = document.getElementById('linkClientsButton');
+    const originalText = button.textContent;
+    
+    button.textContent = 'Liaison en cours...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch('/admin/clients/link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                client_ids: clientIds
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message, 'success');
+            closeAddClientModal();
+            // Recharger l'onglet clients
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadClients();
+            }
+        } else {
+            throw new Error(result.message);
+        }
+
+    } catch (error) {
+        console.error('Erreur:', error);
+        showToast('Erreur lors de la liaison des clients: ' + error.message, 'error');
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
     }
-});
+}
 
-// Fermer les modaux avec la touche Échap
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        const modals = document.querySelectorAll('[id$="Modal"]');
-        modals.forEach(modal => {
-            if (modal.style.display === 'flex') {
-                modal.style.display = 'none';
+// Fonctions pour la gestion des clients
+async function suspendClient(clientId) {
+    if (!confirm('Êtes-vous sûr de vouloir suspendre ce client ?')) return;
+    
+    try {
+        const response = await fetch(`/admin/clients/${clientId}/suspend`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
             }
         });
-    }
-});
-
-// Fonction pour charger une catégorie de menu
-function loadMenuCategory(category) {
-    if (window.dashboardComponent) {
-        window.dashboardComponent.loadMenu(category);
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            // Recharger l'onglet clients
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadClients();
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        showToast('Erreur: ' + error.message, 'error');
     }
 }
 
-// Fonction pour charger un statut de commande
-function loadOrdersStatus(status) {
-    if (window.dashboardComponent) {
-        window.dashboardComponent.loadOrders(status);
+async function activateClient(clientId) {
+    try {
+        const response = await fetch(`/admin/clients/${clientId}/activate`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            // Recharger l'onglet clients
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadClients();
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        showToast('Erreur: ' + error.message, 'error');
     }
 }
 
-// Gestion des événements pour les boutons "Voir Détails" - DÉLÉGATION D'ÉVÉNEMENTS
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('view-order-details-btn')) {
-        const orderId = e.target.getAttribute('data-order-id');
-        console.log('📋 Clic sur Voir Détails pour la commande:', orderId);
-        openOrderDetailsModal(orderId);
+async function unlinkClient(clientId) {
+    if (!confirm('Êtes-vous sûr de vouloir retirer ce client ?')) return;
+    
+    try {
+        const response = await fetch(`/admin/clients/${clientId}/unlink`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            // Recharger l'onglet clients
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadClients();
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        showToast('Erreur: ' + error.message, 'error');
+    }
+}
+
+// Gestion des événements
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('client-checkbox')) {
+        updateSelectedCount();
     }
 });
 
-// Gestion des événements pour les boutons "Accepter" - DÉLÉGATION D'ÉVÉNEMENTS
+// Fermer les modaux en cliquant à l'extérieur
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('accept-order-btn')) {
-        const orderId = e.target.getAttribute('data-order-id');
-        console.log('🟡 Clic sur Accepter pour la commande:', orderId);
-        openTimeModal(orderId);
+    if (e.target.id === 'timeModal') closeTimeModal();
+    if (e.target.id === 'globalAddModal') globalCloseModal();
+    if (e.target.id === 'promotionModal') closePromotionModal();
+    if (e.target.id === 'orderDetailsModal') closeOrderDetailsModal();
+    if (e.target.id === 'addClientModal') closeAddClientModal();
+});
+
+// Fermer avec Échap
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeTimeModal();
+        globalCloseModal();
+        closePromotionModal();
+        closeOrderDetailsModal();
+        closeAddClientModal();
     }
 });
 
+// Fonction utilitaire pour les toasts
+function showToast(message, type = 'success') {
+    const existingToasts = document.querySelectorAll('.custom-toast');
+    existingToasts.forEach(toast => toast.remove());
+
+    const toast = document.createElement('div');
+    toast.className = `custom-toast fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    }`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 4000);
+}
+
+// Composant principal du dashboard - VERSION CORRIGÉE
 document.addEventListener('alpine:init', () => {
     Alpine.data('dashboardComponent', () => ({
         activeTab: 'overview',
         ordersContent: '',
         menuContent: '',
+        clientsContent: '',
         reportsContent: '',
         loading: false,
         error: false,
         
         init() {
-            // Stocker la référence globale
             window.dashboardComponent = this;
-            
             console.log('Dashboard component initialized');
-            
-            // Écouter les événements de changement
-            this.$watch('activeTab', (value) => {
-                if (value === 'orders') {
-                    this.loadOrders();
-                } else if (value === 'menu') {
-                    this.loadMenu();
-                } else if (value === 'reports') {
-                    this.loadReports();
-                }
-            });
         },
         
         async switchTab(tabName) {
@@ -1090,27 +1116,30 @@ document.addEventListener('alpine:init', () => {
             this.loading = true;
             this.error = false;
             
-            await this.$nextTick(); // Attendre le rendu
+            await this.$nextTick();
             
-            if (tabName === 'orders') {
-                await this.loadOrders();
-            } else if (tabName === 'menu') {
-                await this.loadMenu();
-            } else if (tabName === 'reports') {
-                await this.loadReports();
+            try {
+                if (tabName === 'orders') {
+                    await this.loadOrders();
+                } else if (tabName === 'menu') {
+                    await this.loadMenu();
+                } else if (tabName === 'clients') {
+                    await this.loadClients();
+                } else if (tabName === 'reports') {
+                    await this.loadReports();
+                }
+            } catch (error) {
+                console.error('Erreur changement d\'onglet:', error);
+                this.error = true;
+            } finally {
+                this.loading = false;
             }
-            
-            this.loading = false;
         },
         
         async loadOrders(status = 'pending') {
             try {
-                this.loading = true;
-                this.error = false;
-                
-                console.log('Chargement des commandes avec statut:', status);
-                
-                const response = await fetch(`{{ url('admin/orders/ajax') }}?status=${status}&_=${Date.now()}`);
+                console.log('Chargement des commandes, statut:', status);
+                const response = await fetch(`/admin/orders/ajax?status=${status}&_=${Date.now()}`);
                 
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP: ${response.status}`);
@@ -1118,31 +1147,27 @@ document.addEventListener('alpine:init', () => {
                 
                 const html = await response.text();
                 this.ordersContent = html;
-                
                 console.log('Commandes chargées avec succès');
                 
-                // Réattacher les événements après le chargement du contenu
-                setTimeout(() => {
-                    this.attachOrderEvents();
-                }, 100);
-                
             } catch (error) {
-                console.error('Erreur de chargement:', error);
+                console.error('Erreur de chargement des commandes:', error);
                 this.error = true;
-                this.ordersContent = '<div class="text-center py-8 text-red-600">Erreur de chargement des commandes</div>';
-            } finally {
-                this.loading = false;
+                this.ordersContent = `
+                    <div class="text-center py-8 text-red-600">
+                        <p>Erreur de chargement des commandes</p>
+                        <button onclick="window.dashboardComponent.loadOrders('${status}')" 
+                                class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                            Réessayer
+                        </button>
+                    </div>
+                `;
             }
         },
         
         async loadMenu(category = 'repas') {
             try {
-                this.loading = true;
-                this.error = false;
-                
-                console.log('Chargement du menu avec catégorie:', category);
-                
-                const response = await fetch(`{{ url('admin/menu/ajax') }}?category=${category}&_=${Date.now()}`);
+                console.log('Chargement du menu, catégorie:', category);
+                const response = await fetch(`/admin/menu/ajax?category=${category}&_=${Date.now()}`);
                 
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP: ${response.status}`);
@@ -1150,34 +1175,58 @@ document.addEventListener('alpine:init', () => {
                 
                 const html = await response.text();
                 this.menuContent = html;
-                
                 console.log('Menu chargé avec succès');
                 
-                // Réattacher les événements après le chargement du contenu
-                setTimeout(() => {
-                    this.attachMenuEvents();
-                }, 100);
+            } catch (error) {
+                console.error('Erreur de chargement du menu:', error);
+                this.error = true;
+                this.menuContent = `
+                    <div class="text-center py-8 text-red-600">
+                        <p>Erreur de chargement du menu</p>
+                        <button onclick="window.dashboardComponent.loadMenu('${category}')" 
+                                class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                            Réessayer
+                        </button>
+                    </div>
+                `;
+            }
+        },
+        
+        async loadClients() {
+            try {
+                console.log('Chargement des clients');
+                const response = await fetch(`/admin/clients/ajax?_=${Date.now()}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const html = await response.text();
+                this.clientsContent = html;
+                console.log('Clients chargés avec succès');
                 
             } catch (error) {
-                console.error('Erreur de chargement:', error);
+                console.error('Erreur de chargement des clients:', error);
                 this.error = true;
-                this.menuContent = '<div class="text-center py-8 text-red-600">Erreur de chargement du menu</div>';
-            } finally {
-                this.loading = false;
+                this.clientsContent = `
+                    <div class="text-center py-8 text-red-600">
+                        <p>Erreur de chargement des clients</p>
+                        <button onclick="window.dashboardComponent.loadClients()" 
+                                class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                            Réessayer
+                        </button>
+                    </div>
+                `;
             }
         },
         
         async loadReports(startDate = null, endDate = null) {
             try {
-                this.loading = true;
-                this.error = false;
-                
-                let url = `{{ url('admin/reports/ajax') }}?_=${Date.now()}`;
+                console.log('Chargement des rapports');
+                let url = `/admin/reports/ajax?_=${Date.now()}`;
                 if (startDate && endDate) {
                     url += `&start_date=${startDate}&end_date=${endDate}`;
                 }
-                
-                console.log('Chargement des rapports:', url);
                 
                 const response = await fetch(url);
                 
@@ -1187,69 +1236,79 @@ document.addEventListener('alpine:init', () => {
                 
                 const html = await response.text();
                 this.reportsContent = html;
-                
                 console.log('Rapports chargés avec succès');
-                
-                // Réinitialiser Chart.js après chargement
-                setTimeout(() => {
-                    const reportsComponent = document.querySelector('[x-data="reportsComponent()"]');
-                    if (reportsComponent && reportsComponent.__x) {
-                        reportsComponent.__x.$data.renderChart();
-                    }
-                }, 100);
                 
             } catch (error) {
                 console.error('Erreur de chargement des rapports:', error);
                 this.error = true;
-                this.reportsContent = '<div class="text-center py-8 text-red-600">Erreur de chargement des rapports</div>';
-            } finally {
-                this.loading = false;
+                this.reportsContent = `
+                    <div class="text-center py-8 text-red-600">
+                        <p>Erreur de chargement des rapports</p>
+                        <button onclick="window.dashboardComponent.loadReports()" 
+                                class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                            Réessayer
+                        </button>
+                    </div>
+                `;
             }
-        },
-        
-        attachOrderEvents() {
-            // Attacher les événements aux boutons de statut des commandes
-            const statusButtons = document.querySelectorAll('[data-status]');
-            statusButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const status = button.getAttribute('data-status');
-                    this.loadOrders(status);
-                });
-            });
-        },
-        
-        attachMenuEvents() {
-            // Attacher les événements aux boutons de catégorie du menu
-            const categoryButtons = document.querySelectorAll('[data-category]');
-            categoryButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const category = button.getAttribute('data-category');
-                    this.loadMenu(category);
-                });
-            });
-            
-            // Attacher les événements aux boutons d'ajout
-            const addButtons = document.querySelectorAll('[data-add-item]');
-            addButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    globalOpenAddModal();
-                });
-            });
         }
     }));
 });
 
-// Gestion des modaux globaux
+// Initialisation
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Dashboard JavaScript chargé');
+    console.log('Dashboard loaded');
+    
+    // Délégation d'événements globale
+    document.addEventListener('click', function(e) {
+        // Voir détails commande
+        if (e.target.classList.contains('view-order-details-btn')) {
+            const orderId = e.target.dataset.orderId;
+            openOrderDetailsModal(orderId);
+        }
+        
+        // Accepter commande
+        if (e.target.classList.contains('accept-order-btn')) {
+            const orderId = e.target.dataset.orderId;
+            openTimeModal(orderId);
+        }
+
+        // Ajouter client
+        if (e.target.closest('button') && e.target.closest('button').textContent.includes('Ajouter Client')) {
+            e.preventDefault();
+            openAddClientModal();
+        }
+
+        // Ajouter article
+        if (e.target.closest('button') && (e.target.closest('button').textContent.includes('Ajouter un Article') || e.target.closest('button').textContent.includes('Ajouter le premier') || e.target.closest('button').textContent.includes('Ajouter la première'))) {
+            e.preventDefault();
+            globalOpenAddModal();
+        }
+
+        // Boutons de catégorie menu
+        if (e.target.hasAttribute('data-category')) {
+            e.preventDefault();
+            const category = e.target.getAttribute('data-category');
+            console.log('Changement de catégorie:', category);
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadMenu(category);
+            }
+        }
+
+        // Boutons de statut commandes
+        if (e.target.hasAttribute('data-status')) {
+            e.preventDefault();
+            const status = e.target.getAttribute('data-status');
+            console.log('Changement de statut:', status);
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadOrders(status);
+            }
+        }
+    });
 });
 </script>
 
 <style>
-/* Animations pour les transitions */
 [x-cloak] { display: none !important; }
 
 .fade-enter-active, .fade-leave-active {
@@ -1258,6 +1317,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .fade-enter-from, .fade-leave-to {
     opacity: 0;
+}
+
+.tooltip {
+    position: relative;
+}
+
+.tooltip:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 5px;
+}
+
+.custom-toast {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 </style>
 @endsection

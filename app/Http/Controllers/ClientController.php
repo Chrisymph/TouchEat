@@ -16,6 +16,13 @@ class ClientController extends Controller
             return redirect()->route('client.auth');
         }
 
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            Auth::logout();
+            return redirect()->route('client.auth')->with('error', 'Votre compte a été suspendu. Veuillez contacter l\'administrateur.');
+        }
+
         $menuItems = MenuItem::where('available', true)->get();
         $currentOrder = Order::where('table_number', Auth::user()->table_number)
             ->whereIn('status', ['commandé', 'en_cours', 'prêt'])
@@ -38,6 +45,15 @@ class ClientController extends Controller
 
     public function addToCart(Request $request)
     {
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Votre compte a été suspendu. Vous ne pouvez pas passer de commande.'
+            ], 403);
+        }
+
         $request->validate([
             'menu_item_id' => 'required|exists:menu_items,id',
             'quantity' => 'required|integer|min:1'
@@ -74,6 +90,15 @@ class ClientController extends Controller
 
     public function updateCart(Request $request)
     {
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Votre compte a été suspendu. Vous ne pouvez pas modifier votre panier.'
+            ], 403);
+        }
+
         $request->validate([
             'menu_item_id' => 'required|exists:menu_items,id',
             'quantity' => 'required|integer|min:0'
@@ -107,6 +132,15 @@ class ClientController extends Controller
 
     public function placeOrder(Request $request)
     {
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Votre compte a été suspendu. Vous ne pouvez pas passer de commande.'
+            ], 403);
+        }
+
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
             'phone_number' => 'required|string'
@@ -163,6 +197,15 @@ class ClientController extends Controller
      */
     public function addToExistingOrder(Request $request, $orderId)
     {
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Votre compte a été suspendu. Vous ne pouvez pas ajouter d\'articles.'
+            ], 403);
+        }
+
         $request->validate([
             'menu_item_id' => 'required|exists:menu_items,id',
             'quantity' => 'required|integer|min:1'
@@ -217,6 +260,13 @@ class ClientController extends Controller
             return redirect()->route('client.auth');
         }
 
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            Auth::logout();
+            return redirect()->route('client.auth')->with('error', 'Votre compte a été suspendu. Veuillez contacter l\'administrateur.');
+        }
+
         $order = Order::with(['items.menuItem'])
                      ->where('id', $orderId)
                      ->where('table_number', Auth::user()->table_number)
@@ -250,6 +300,13 @@ class ClientController extends Controller
     {
         if (!Auth::check() || Auth::user()->role !== 'client') {
             return redirect()->route('client.auth');
+        }
+
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            Auth::logout();
+            return redirect()->route('client.auth')->with('error', 'Votre compte a été suspendu. Veuillez contacter l\'administrateur.');
         }
 
         $user = Auth::user();

@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\MenuItem;
 use App\Models\Report;
 use App\Models\OrderItem;
+use App\Models\User;
 
 class AdminController extends Controller
 {
@@ -19,19 +20,28 @@ class AdminController extends Controller
     public function dashboard()
     {
         $today = Carbon::today();
+        $admin = Auth::user();
         
-        // Statistiques
+        // CORRECTION : Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+        
+        // Statistiques - CORRECTION : Filtrer par tables liées
         $stats = [
-            'todayOrders' => Order::whereDate('created_at', $today)->count(),
-            'pendingOrders' => Order::whereIn('status', ['commandé', 'en_cours'])->count(),
-            'todayRevenue' => Order::whereDate('created_at', $today)->sum('total'),
-            'activeTables' => Order::whereIn('status', ['commandé', 'en_cours', 'prêt'])
+            'todayOrders' => Order::whereIn('table_number', $linkedClientTables)
+                                ->whereDate('created_at', $today)->count(),
+            'pendingOrders' => Order::whereIn('table_number', $linkedClientTables)
+                                ->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'todayRevenue' => Order::whereIn('table_number', $linkedClientTables)
+                                ->whereDate('created_at', $today)->sum('total'),
+            'activeTables' => Order::whereIn('table_number', $linkedClientTables)
+                                ->whereIn('status', ['commandé', 'en_cours', 'prêt'])
                                 ->distinct('table_number')
                                 ->count('table_number'),
         ];
 
-        // Commandes récentes
+        // Commandes récentes - CORRECTION : Filtrer par tables liées
         $recentOrders = Order::with('items')
+                           ->whereIn('table_number', $linkedClientTables)
                            ->orderBy('created_at', 'desc')
                            ->limit(5)
                            ->get();
@@ -45,8 +55,13 @@ class AdminController extends Controller
     public function orders(Request $request)
     {
         $status = $request->get('status', 'pending');
+        $admin = Auth::user();
         
-        $query = Order::with('items');
+        // CORRECTION : Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+        
+        $query = Order::with('items')
+                    ->whereIn('table_number', $linkedClientTables);
         
         switch ($status) {
             case 'pending':
@@ -63,9 +78,12 @@ class AdminController extends Controller
         $orders = $query->orderBy('created_at', 'desc')->get();
         
         $orderCounts = [
-            'pending' => Order::whereIn('status', ['commandé', 'en_cours'])->count(),
-            'ready' => Order::where('status', 'prêt')->count(),
-            'completed' => Order::whereIn('status', ['livré', 'terminé'])->count(),
+            'pending' => Order::whereIn('table_number', $linkedClientTables)
+                            ->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'ready' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('status', 'prêt')->count(),
+            'completed' => Order::whereIn('table_number', $linkedClientTables)
+                            ->whereIn('status', ['livré', 'terminé'])->count(),
         ];
 
         return view('admin.orders', compact('orders', 'status', 'orderCounts'));
@@ -77,8 +95,13 @@ class AdminController extends Controller
     public function ordersAjax(Request $request)
     {
         $status = $request->get('status', 'pending');
+        $admin = Auth::user();
         
-        $query = Order::with(['items.menuItem']);
+        // CORRECTION : Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+        
+        $query = Order::with(['items.menuItem'])
+                    ->whereIn('table_number', $linkedClientTables);
         
         switch ($status) {
             case 'pending':
@@ -95,9 +118,12 @@ class AdminController extends Controller
         $orders = $query->orderBy('created_at', 'desc')->get();
         
         $orderCounts = [
-            'pending' => Order::whereIn('status', ['commandé', 'en_cours'])->count(),
-            'ready' => Order::where('status', 'prêt')->count(),
-            'completed' => Order::whereIn('status', ['livré', 'terminé'])->count(),
+            'pending' => Order::whereIn('table_number', $linkedClientTables)
+                            ->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'ready' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('status', 'prêt')->count(),
+            'completed' => Order::whereIn('table_number', $linkedClientTables)
+                            ->whereIn('status', ['livré', 'terminé'])->count(),
         ];
 
         return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
@@ -201,104 +227,366 @@ class AdminController extends Controller
         }
     }
 
+     
     /**
- * Rapports et statistiques (version AJAX pour le dashboard - CORRIGÉ)
- */
-public function reportsAjax(Request $request)
-{
-    $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
-    $endDate = $request->get('end_date', now()->format('Y-m-d'));
+     * Gestion des clients (version AJAX pour le dashboard)
+     */
+    public function clientsAjax(Request $request)
+    {
+        try {
+            // Récupérer les clients liés à cet admin
+            $linkedClients = Auth::user()->linkedClients()
+                ->orderBy('name')
+                ->get();
 
-    // ✅ TOUTES les commandes terminées (sans filtre de date)
-    $allCompletedOrders = Order::whereIn('status', ['terminé', 'livré'])
-        ->with('items')
-        ->get();
+            // Récupérer tous les clients disponibles pour l'ajout
+            $availableClients = User::where('role', 'client')
+                ->whereDoesntHave('linkedAdmins', function($query) {
+                    $query->where('admin_id', Auth::id());
+                })
+                ->orderBy('name')
+                ->get();
 
-    // ✅ Commandes de la période pour les autres analyses
-    $completedOrdersForPeriod = Order::whereBetween('created_at', [$startDate, $endDate])
-        ->whereIn('status', ['terminé', 'livré'])
-        ->with('items')
-        ->get();
+            return view('admin.clients-content', compact('linkedClients', 'availableClients'));
 
-    // Calcul des statistiques avec TOUTES les commandes
-    $totalRevenue = $allCompletedOrders->sum('total');
-    $totalOrders = $allCompletedOrders->count();
-    $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
+        } catch (\Exception $e) {
+            \Log::error('Erreur clientsAjax:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des clients'
+            ], 500);
+        }
+    }
 
-    // Commandes par type (toutes aussi)
-    $dineInOrders = $allCompletedOrders->where('order_type', 'sur_place')->count();
-    $deliveryOrders = $allCompletedOrders->where('order_type', 'livraison')->count();
+    /**
+     * Récupérer les clients disponibles pour l'ajout
+     */
+    public function getAvailableClients()
+    {
+        try {
+            $availableClients = User::where('role', 'client')
+                ->whereDoesntHave('linkedAdmins', function($query) {
+                    $query->where('admin_id', Auth::id());
+                })
+                ->orderBy('name')
+                ->get()
+                ->map(function($client) {
+                    return [
+                        'id' => $client->id,
+                        'name' => $client->name,
+                        'email' => $client->email,
+                        'table_number' => $client->table_number ?? 'N/A',
+                        'is_suspended' => $client->is_suspended ?? false
+                    ];
+                });
 
-    // Performance du menu (sur la période pour garder l'analyse temporelle)
-    $menuPerformance = $this->getMenuPerformance($completedOrdersForPeriod);
-    $topItems = $this->getTopItems($menuPerformance);
+            return response()->json([
+                'success' => true,
+                'clients' => $availableClients
+            ]);
 
-    // Temps de préparation moyen (toutes commandes)
-    $avgPreparationTime = $this->getAveragePreparationTime($allCompletedOrders);
+        } catch (\Exception $e) {
+            \Log::error('Erreur getAvailableClients:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des clients disponibles'
+            ], 500);
+        }
+    }
 
-    // ✅ CORRECTION: Statistiques détaillées avec TOUTES les données (sans filtre de date)
-    $detailedStats = $this->getDetailedStatsAllTime();
+    /**
+     * Lier des clients à l'admin
+     */
+    public function linkClients(Request $request)
+    {
+        try {
+            $request->validate([
+                'client_ids' => 'required|array',
+                'client_ids.*' => 'exists:users,id'
+            ]);
 
-    return view('admin.reports-content', compact(
-        'totalRevenue',
-        'totalOrders', 
-        'avgOrderValue',
-        'dineInOrders',
-        'deliveryOrders',
-        'topItems',
-        'avgPreparationTime',
-        'detailedStats',
-        'startDate',
-        'endDate'
-    ));
-}
+            $admin = Auth::user();
+            $clientIds = $request->client_ids;
 
-/**
- * Statistiques détaillées avec TOUTES les données (sans filtre de date)
- */
-private function getDetailedStatsAllTime()
-{
-    // ✅ TOUTES les commandes (sans filtre de date)
-    $allOrders = Order::all();
-    $completedOrders = Order::whereIn('status', ['terminé', 'livré'])
-        ->with('items')
-        ->get();
+            // Vérifier que les clients existent et sont bien des clients
+            $clients = User::whereIn('id', $clientIds)
+                ->where('role', 'client')
+                ->get();
 
-    // Commandes par statut (toutes)
-    $ordersByStatus = [
-        'terminé' => $allOrders->where('status', 'terminé')->count(),
-        'livré' => $allOrders->where('status', 'livré')->count(),
-        'en_cours' => $allOrders->where('status', 'en_cours')->count(),
-        'prêt' => $allOrders->where('status', 'prêt')->count(),
-        'commandé' => $allOrders->where('status', 'commandé')->count(),
-    ];
+            // Lier les clients à l'admin
+            $admin->linkedClients()->syncWithoutDetaching($clients->pluck('id')->toArray());
 
-    // ✅ CORRECTION: Analyse des revenus avec TOUTES les données
-    $revenueAnalysis = [
-        'sur_place' => $completedOrders->where('order_type', 'sur_place')->sum('total'),
-        'livraison' => $completedOrders->where('order_type', 'livraison')->sum('total'),
-    ];
+            return response()->json([
+                'success' => true,
+                'message' => count($clients) . ' client(s) lié(s) avec succès!'
+            ]);
 
-    // ✅ CORRECTION: Performance du menu avec TOUTES les données
-    $menuItems = OrderItem::whereHas('order', function($query) {
-            $query->whereIn('status', ['terminé', 'livré']);
-        })
-        ->select('category', DB::raw('SUM(quantity) as total_quantity'))
-        ->groupBy('category')
-        ->get()
-        ->pluck('total_quantity', 'category');
+        } catch (\Exception $e) {
+            \Log::error('Erreur linkClients:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la liaison des clients: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 
-    $menuPerformance = [
-        'repas' => $menuItems['repas'] ?? 0,
-        'boisson' => $menuItems['boisson'] ?? 0,
-    ];
+    /**
+     * Retirer un client lié
+     */
+    public function unlinkClient($clientId)
+    {
+        try {
+            $admin = Auth::user();
+            
+            // Vérifier que le client est bien lié à cet admin
+            if (!$admin->linkedClients()->where('client_id', $clientId)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce client n\'est pas lié à votre compte'
+                ], 404);
+            }
 
-    return [
-        'ordersByStatus' => $ordersByStatus,
-        'revenueAnalysis' => $revenueAnalysis,
-        'menuPerformance' => $menuPerformance,
-    ];
-}
+            $admin->linkedClients()->detach($clientId);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Client retiré avec succès!'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur unlinkClient:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du retrait du client: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Suspendre un client
+     */
+    public function suspendClient($clientId)
+    {
+        try {
+            $admin = Auth::user();
+            
+            // CORRECTION : Récupérer le client directement depuis User
+            $client = User::where('id', $clientId)
+                        ->where('role', 'client')
+                        ->first();
+            
+            if (!$client) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Client non trouvé'
+                ], 404);
+            }
+
+            // Vérifier que le client est bien lié à cet admin
+            if (!$admin->linkedClients()->where('client_id', $clientId)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce client n\'est pas lié à votre compte'
+                ], 403);
+            }
+
+            // CORRECTION : Utiliser update directement au lieu de la méthode suspend()
+            $client->update([
+                'is_suspended' => true,
+                'suspended_until' => null,
+            ]);
+
+            // Déconnecter le client s'il est connecté
+            $this->logoutClientSessions($clientId);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Client suspendu avec succès!'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur suspendClient:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suspension du client: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Activer un client
+     */
+    public function activateClient($clientId)
+    {
+        try {
+            $admin = Auth::user();
+            
+            // CORRECTION : Récupérer le client directement depuis User
+            $client = User::where('id', $clientId)
+                        ->where('role', 'client')
+                        ->first();
+            
+            if (!$client) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Client non trouvé'
+                ], 404);
+            }
+
+            // Vérifier que le client est bien lié à cet admin
+            if (!$admin->linkedClients()->where('client_id', $clientId)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce client n\'est pas lié à votre compte'
+                ], 403);
+            }
+
+            // CORRECTION : Utiliser update directement au lieu de la méthode activate()
+            $client->update([
+                'is_suspended' => false,
+                'suspended_until' => null,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Client activé avec succès!'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur activateClient:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'activation du client: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Déconnecter toutes les sessions d'un client
+     */
+    private function logoutClientSessions($clientId)
+    {
+        try {
+            $client = User::find($clientId);
+            if ($client) {
+                // Ici vous pouvez implémenter la déconnexion des sessions
+                // Pour l'instant, on se contente de logger
+                \Log::info("Déconnexion forcée du client: {$client->name} (ID: {$clientId})");
+                
+                // Vous pouvez utiliser Laravel Sanctum ou autre système de sessions
+                // pour forcer la déconnexion si nécessaire
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur logoutClientSessions:', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Rapports et statistiques (version AJAX pour le dashboard - CORRIGÉ)
+     */
+    public function reportsAjax(Request $request)
+    {
+        $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
+        $endDate = $request->get('end_date', now()->format('Y-m-d'));
+        $admin = Auth::user();
+        
+        // CORRECTION : Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+
+        // ✅ TOUTES les commandes terminées (sans filtre de date) - CORRECTION
+        $allCompletedOrders = Order::whereIn('table_number', $linkedClientTables)
+            ->whereIn('status', ['terminé', 'livré'])
+            ->with('items')
+            ->get();
+
+        // ✅ Commandes de la période pour les autres analyses - CORRECTION
+        $completedOrdersForPeriod = Order::whereIn('table_number', $linkedClientTables)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereIn('status', ['terminé', 'livré'])
+            ->with('items')
+            ->get();
+
+        // Calcul des statistiques avec TOUTES les commandes
+        $totalRevenue = $allCompletedOrders->sum('total');
+        $totalOrders = $allCompletedOrders->count();
+        $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
+
+        // Commandes par type (toutes aussi)
+        $dineInOrders = $allCompletedOrders->where('order_type', 'sur_place')->count();
+        $deliveryOrders = $allCompletedOrders->where('order_type', 'livraison')->count();
+
+        // Performance du menu (sur la période pour garder l'analyse temporelle)
+        $menuPerformance = $this->getMenuPerformance($completedOrdersForPeriod);
+        $topItems = $this->getTopItems($menuPerformance);
+
+        // Temps de préparation moyen (toutes commandes)
+        $avgPreparationTime = $this->getAveragePreparationTime($allCompletedOrders);
+
+        // ✅ CORRECTION: Statistiques détaillées avec TOUTES les données (sans filtre de date)
+        $detailedStats = $this->getDetailedStatsAllTime($linkedClientTables);
+
+        return view('admin.reports-content', compact(
+            'totalRevenue',
+            'totalOrders', 
+            'avgOrderValue',
+            'dineInOrders',
+            'deliveryOrders',
+            'topItems',
+            'avgPreparationTime',
+            'detailedStats',
+            'startDate',
+            'endDate'
+        ));
+    }
+
+    /**
+     * Statistiques détaillées avec TOUTES les données (sans filtre de date)
+     */
+    private function getDetailedStatsAllTime($linkedClientTables = [])
+    {
+        // ✅ TOUTES les commandes (sans filtre de date) - CORRECTION
+        $allOrders = Order::whereIn('table_number', $linkedClientTables)->get();
+        $completedOrders = Order::whereIn('table_number', $linkedClientTables)
+            ->whereIn('status', ['terminé', 'livré'])
+            ->with('items')
+            ->get();
+
+        // Commandes par statut (toutes)
+        $ordersByStatus = [
+            'terminé' => $allOrders->where('status', 'terminé')->count(),
+            'livré' => $allOrders->where('status', 'livré')->count(),
+            'en_cours' => $allOrders->where('status', 'en_cours')->count(),
+            'prêt' => $allOrders->where('status', 'prêt')->count(),
+            'commandé' => $allOrders->where('status', 'commandé')->count(),
+        ];
+
+        // ✅ CORRECTION: Analyse des revenus avec TOUTES les données
+        $revenueAnalysis = [
+            'sur_place' => $completedOrders->where('order_type', 'sur_place')->sum('total'),
+            'livraison' => $completedOrders->where('order_type', 'livraison')->sum('total'),
+        ];
+
+        // ✅ CORRECTION: Performance du menu avec TOUTES les données
+        $menuItems = OrderItem::whereHas('order', function($query) use ($linkedClientTables) {
+                $query->whereIn('table_number', $linkedClientTables)
+                      ->whereIn('status', ['terminé', 'livré']);
+            })
+            ->select('category', DB::raw('SUM(quantity) as total_quantity'))
+            ->groupBy('category')
+            ->get()
+            ->pluck('total_quantity', 'category');
+
+        $menuPerformance = [
+            'repas' => $menuItems['repas'] ?? 0,
+            'boisson' => $menuItems['boisson'] ?? 0,
+        ];
+
+        return [
+            'ordersByStatus' => $ordersByStatus,
+            'revenueAnalysis' => $revenueAnalysis,
+            'menuPerformance' => $menuPerformance,
+        ];
+    }
 
     /**
      * Performance du menu (CORRIGÉ)
@@ -362,10 +650,12 @@ private function getDetailedStatsAllTime()
     /**
      * Statistiques détaillées (CORRIGÉ)
      */
-    private function getDetailedStats($startDate, $endDate)
+    private function getDetailedStats($startDate, $endDate, $linkedClientTables = [])
     {
-        $allOrders = Order::whereBetween('created_at', [$startDate, $endDate])->get();
-        $completedOrders = Order::whereBetween('created_at', [$startDate, $endDate])
+        $allOrders = Order::whereIn('table_number', $linkedClientTables)
+                        ->whereBetween('created_at', [$startDate, $endDate])->get();
+        $completedOrders = Order::whereIn('table_number', $linkedClientTables)
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->whereIn('status', ['terminé', 'livré'])
             ->with('items')
             ->get();
@@ -385,8 +675,9 @@ private function getDetailedStatsAllTime()
         ];
 
         // Performance du menu - CORRECTION
-        $menuItems = OrderItem::whereHas('order', function($query) use ($startDate, $endDate) {
-                $query->whereBetween('created_at', [$startDate, $endDate])
+        $menuItems = OrderItem::whereHas('order', function($query) use ($startDate, $endDate, $linkedClientTables) {
+                $query->whereIn('table_number', $linkedClientTables)
+                      ->whereBetween('created_at', [$startDate, $endDate])
                       ->whereIn('status', ['terminé', 'livré']);
             })
             ->select('category', DB::raw('SUM(quantity) as total_quantity'))
@@ -414,12 +705,17 @@ private function getDetailedStatsAllTime()
         try {
             $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
             $endDate = $request->get('end_date', now()->format('Y-m-d'));
+            $admin = Auth::user();
+            
+            // CORRECTION : Récupérer seulement les tables des clients liés
+            $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
 
             $start = Carbon::parse($startDate);
             $end = Carbon::parse($endDate);
             
             // Récupérer les données du rapport
-            $completedOrders = Order::whereBetween('created_at', [$startDate, $endDate])
+            $completedOrders = Order::whereIn('table_number', $linkedClientTables)
+                ->whereBetween('created_at', [$startDate, $endDate])
                 ->whereIn('status', ['terminé', 'livré'])
                 ->with('items')
                 ->get();
@@ -476,8 +772,13 @@ private function getDetailedStatsAllTime()
     {
         $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
         $endDate = $request->get('end_date', now()->format('Y-m-d'));
+        $admin = Auth::user();
+        
+        // CORRECTION : Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
 
-        $completedOrders = Order::whereBetween('created_at', [$startDate, $endDate])
+        $completedOrders = Order::whereIn('table_number', $linkedClientTables)
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->whereIn('status', ['terminé', 'livré'])
             ->with('items')
             ->get();
@@ -819,9 +1120,14 @@ private function getDetailedStatsAllTime()
     {
         $startDate = $request->get('start_date', now()->subDays(30)->format('Y-m-d'));
         $endDate = $request->get('end_date', now()->format('Y-m-d'));
+        $admin = Auth::user();
+        
+        // CORRECTION : Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
 
         // Commandes terminées pour l'analyse
-        $completedOrders = Order::whereBetween('created_at', [$startDate, $endDate])
+        $completedOrders = Order::whereIn('table_number', $linkedClientTables)
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->whereIn('status', ['terminé', 'livré'])
             ->with('items')
             ->get();
@@ -843,7 +1149,7 @@ private function getDetailedStatsAllTime()
         $avgPreparationTime = $this->getAveragePreparationTime($completedOrders);
 
         // Statistiques détaillées
-        $detailedStats = $this->getDetailedStats($startDate, $endDate);
+        $detailedStats = $this->getDetailedStats($startDate, $endDate, $linkedClientTables);
 
         return view('admin.reports-full', compact(
             'totalRevenue',

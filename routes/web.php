@@ -46,6 +46,14 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/menu/{id}/promotion', [AdminController::class, 'addPromotion'])->name('admin.menu.promotion.add');
     Route::delete('/menu/{id}/promotion', [AdminController::class, 'removePromotion'])->name('admin.menu.promotion.remove');
     Route::get('/menu/{id}/ajax', [AdminController::class, 'getMenuItem'])->name('admin.menu.item.ajax');
+
+// Routes pour la gestion des clients
+Route::get('/clients/ajax', [AdminController::class, 'clientsAjax'])->name('admin.clients.ajax');
+Route::get('/clients/available', [AdminController::class, 'getAvailableClients'])->name('admin.clients.available'); // NOUVELLE ROUTE
+Route::post('/clients/link', [AdminController::class, 'linkClients'])->name('admin.clients.link');
+Route::delete('/clients/{clientId}/unlink', [AdminController::class, 'unlinkClient'])->name('admin.clients.unlink');
+Route::post('/clients/{clientId}/suspend', [AdminController::class, 'suspendClient'])->name('admin.clients.suspend');
+Route::post('/clients/{clientId}/activate', [AdminController::class, 'activateClient'])->name('admin.clients.activate');
     
     // Routes pour les rapports
     Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
