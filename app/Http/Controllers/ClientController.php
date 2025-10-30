@@ -56,7 +56,8 @@ class ClientController extends Controller
 
         $request->validate([
             'menu_item_id' => 'required|exists:menu_items,id',
-            'quantity' => 'required|integer|min:1'
+            'quantity' => 'required|integer|min:1',
+            'order_id' => 'nullable|exists:orders,id' // NOUVEAU : ID de commande existante
         ]);
 
         $cart = session()->get('cart', []);
@@ -73,7 +74,8 @@ class ClientController extends Controller
                 'quantity' => $request->quantity,
                 'category' => $menuItem->category,
                 'promotion_discount' => $menuItem->promotion_discount,
-                'original_price' => $menuItem->original_price
+                'original_price' => $menuItem->original_price,
+                'order_id' => $request->order_id // NOUVEAU : Stocker l'ID de commande
             ];
         }
 
@@ -84,7 +86,8 @@ class ClientController extends Controller
         return response()->json([
             'success' => true,
             'cart_count' => $cartCount,
-            'cart_items' => array_values($cart)
+            'cart_items' => array_values($cart),
+            'has_existing_order' => !empty($request->order_id) // NOUVEAU
         ]);
     }
 
@@ -143,7 +146,8 @@ class ClientController extends Controller
 
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
-            'phone_number' => 'required|string'
+            'phone_number' => 'required|string',
+            'existing_order_id' => 'nullable|exists:orders,id' // NOUVEAU : ID de commande existante
         ]);
 
         $cart = session()->get('cart', []);
@@ -160,36 +164,85 @@ class ClientController extends Controller
             $total += $item['price'] * $item['quantity'];
         }
 
-        $order = Order::create([
-            'table_number' => Auth::user()->table_number,
-            'total' => $total,
-            'status' => 'commandé',
-            'payment_status' => 'en_attente',
-            'order_type' => $request->order_type,
-            'customer_phone' => $request->phone_number,
-            'estimated_time' => null
-        ]);
+        // NOUVEAU : Vérifier si on ajoute à une commande existante
+        if ($request->has('existing_order_id') && $request->existing_order_id) {
+            $order = Order::where('id', $request->existing_order_id)
+                ->where('table_number', Auth::user()->table_number)
+                ->firstOrFail();
 
-        foreach ($cart as $menuItemId => $item) {
-            OrderItem::create([
+            // Ajouter les articles à la commande existante
+            foreach ($cart as $menuItemId => $item) {
+                $existingItem = OrderItem::where('order_id', $order->id)
+                    ->where('menu_item_id', $menuItemId)
+                    ->first();
+
+                if ($existingItem) {
+                    $existingItem->quantity += $item['quantity'];
+                    $existingItem->save();
+                } else {
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'menu_item_id' => $menuItemId,
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['price'],
+                        'category' => $item['category'],
+                        'notes' => ''
+                    ]);
+                }
+            }
+
+            // Recalculer le total
+            $newTotal = OrderItem::where('order_id', $order->id)
+                ->get()
+                ->sum(function($item) {
+                    return $item->unit_price * $item->quantity;
+                });
+
+            $order->total = $newTotal;
+            $order->save();
+
+            session()->forget('cart');
+
+            return response()->json([
+                'success' => true,
                 'order_id' => $order->id,
-                'menu_item_id' => $menuItemId,
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['price'],
-                'category' => $item['category'],
-                'notes' => ''
+                'estimated_time' => $order->estimated_time,
+                'message' => 'Articles ajoutés à la commande existante avec succès!',
+                'redirect_url' => route('client.order.confirmation', $order->id)
+            ]);
+        } else {
+            // Créer une nouvelle commande
+            $order = Order::create([
+                'table_number' => Auth::user()->table_number,
+                'total' => $total,
+                'status' => 'commandé',
+                'payment_status' => 'en_attente',
+                'order_type' => $request->order_type,
+                'customer_phone' => $request->phone_number,
+                'estimated_time' => null
+            ]);
+
+            foreach ($cart as $menuItemId => $item) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'menu_item_id' => $menuItemId,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['price'],
+                    'category' => $item['category'],
+                    'notes' => ''
+                ]);
+            }
+
+            session()->forget('cart');
+
+            return response()->json([
+                'success' => true,
+                'order_id' => $order->id,
+                'estimated_time' => $order->estimated_time,
+                'message' => 'Commande passée avec succès!',
+                'redirect_url' => route('client.order.confirmation', $order->id)
             ]);
         }
-
-        session()->forget('cart');
-
-        return response()->json([
-            'success' => true,
-            'order_id' => $order->id,
-            'estimated_time' => $order->estimated_time,
-            'message' => 'Commande passée avec succès!',
-            'redirect_url' => route('client.order.confirmation', $order->id)
-        ]);
     }
 
     /**

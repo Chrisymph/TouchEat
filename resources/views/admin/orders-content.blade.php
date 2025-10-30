@@ -87,6 +87,36 @@
                         </div>
                     </div>
 
+                    <!-- CORRIGÉ : Détection améliorée des ajouts d'articles -->
+                    @php
+                        // Vérifier si des articles ont été ajoutés après l'acceptation
+                        $hasRecentAdditions = false;
+                        $orderAge = $order->created_at->diffInMinutes(now());
+                        
+                        if ($orderAge > 5) {
+                            // Vérifier s'il y a des items créés récemment (dans les 5 dernières minutes)
+                            $recentItems = $order->items->filter(function($item) {
+                                return $item->created_at->diffInMinutes(now()) <= 5;
+                            });
+                            $hasRecentAdditions = $recentItems->count() > 0;
+                        }
+                        
+                        $hasMultipleItems = $order->items->count() > 1;
+                        $hasLargeQuantity = $order->items->sum('quantity') > 3;
+                        $hasAdditions = $hasRecentAdditions || $hasMultipleItems || $hasLargeQuantity;
+                    @endphp
+                    
+                    @if($hasAdditions && in_array($order->status, ['commandé', 'en_cours']))
+                    <div class="mb-3">
+                        <span class="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
+                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>
+                            </svg>
+                            Ajouts d'articles
+                        </span>
+                    </div>
+                    @endif
+
                     <!-- Actions -->
                     <div class="flex space-x-2">
                         <button type="button" 
@@ -114,6 +144,18 @@
                         </form>
                         @endif
                     </div>
+
+                    <!-- CORRIGÉ : Bouton Ajouter du Temps - Conditions plus simples -->
+                    @if($hasAdditions && in_array($order->status, ['commandé', 'en_cours']) && $order->status !== 'prêt')
+                    <div class="mt-3 pt-3 border-t border-gray-200">
+                        <button type="button" 
+                                class="w-full bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700 transition-colors add-time-btn"
+                                data-order-id="{{ $order->id }}"
+                                data-current-time="{{ $order->estimated_time ?? 15 }}">
+                            ⏱️ Ajouter du temps
+                        </button>
+                    </div>
+                    @endif
                 </div>
             </div>
             @endforeach
@@ -122,7 +164,50 @@
 </div>
 
 <script>
-// Fonction pour ouvrir le modal des détails de commande
+// CORRIGÉ : Initialisation des événements améliorée
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📋 Initialisation des événements orders-content');
+    
+    // Événements pour les onglets
+    document.addEventListener('click', function(e) {
+        if (e.target.hasAttribute('data-status')) {
+            e.preventDefault();
+            const status = e.target.getAttribute('data-status');
+            console.log('📁 Changement d\'onglet:', status);
+            
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadOrders(status);
+            }
+        }
+        
+        // Événements pour les boutons "Voir Détails"
+        if (e.target.classList.contains('view-order-details-btn')) {
+            e.preventDefault();
+            const orderId = e.target.getAttribute('data-order-id');
+            openOrderDetailsModal(orderId);
+        }
+        
+        // CORRIGÉ : Événements pour les boutons "Ajouter du Temps" - délégation d'événements
+        if (e.target.classList.contains('add-time-btn')) {
+            e.preventDefault();
+            const orderId = e.target.getAttribute('data-order-id');
+            const currentTime = e.target.getAttribute('data-current-time');
+            console.log('⏱️ Clic sur bouton ajouter temps:', orderId);
+            openAddTimeModal(orderId, currentTime);
+        }
+    });
+    
+    // Délégation d'événements pour les boutons "Accepter"
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('accept-order-btn')) {
+            const orderId = e.target.getAttribute('data-order-id');
+            console.log('🟡 Clic sur Accepter pour la commande:', orderId);
+            openTimeModal(orderId);
+        }
+    });
+});
+
+// CORRIGÉ : Fonction pour ouvrir le modal des détails de commande
 function openOrderDetailsModal(orderId) {
     console.log('📋 Ouverture du modal pour la commande:', orderId);
     
@@ -161,7 +246,7 @@ function openOrderDetailsModal(orderId) {
         });
 }
 
-// Fonction pour remplir le modal avec les données JSON
+// CORRIGÉ : Fonction pour remplir le modal avec les données JSON
 function populateOrderModalWithJSON(orderData, orderId) {
     // Remplir les informations de base
     document.getElementById('modalOrderId').textContent = orderData.id || orderId;
@@ -204,12 +289,9 @@ function populateOrderModalWithJSON(orderData, orderId) {
             </div>
         `;
     }
-    
-    // Mettre à jour le lien vers la page complète
-    document.getElementById('modalFullDetailsLink').href = `/admin/orders/${orderId}`;
 }
 
-// Fonction pour fermer le modal
+// CORRIGÉ : Fonction pour fermer le modal
 function closeOrderDetailsModal() {
     document.getElementById('orderDetailsModal').style.display = 'none';
 }
@@ -226,37 +308,5 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeOrderDetailsModal();
     }
-});
-
-// Initialisation des événements
-document.addEventListener('DOMContentLoaded', function() {
-    // Événements pour les onglets
-    document.addEventListener('click', function(e) {
-        if (e.target.hasAttribute('data-status')) {
-            e.preventDefault();
-            const status = e.target.getAttribute('data-status');
-            console.log('📁 Changement d\'onglet:', status);
-            
-            if (window.dashboardComponent) {
-                window.dashboardComponent.loadOrders(status);
-            }
-        }
-        
-        // Événements pour les boutons "Voir Détails"
-        if (e.target.classList.contains('view-order-details-btn')) {
-            e.preventDefault();
-            const orderId = e.target.getAttribute('data-order-id');
-            openOrderDetailsModal(orderId);
-        }
-    });
-    
-    // Délégation d'événements pour les boutons "Accepter"
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('accept-order-btn')) {
-            const orderId = e.target.getAttribute('data-order-id');
-            console.log('🟡 Clic sur Accepter pour la commande:', orderId);
-            openTimeModal(orderId);
-        }
-    });
 });
 </script>

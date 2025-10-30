@@ -11,6 +11,13 @@
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -44,7 +51,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-12">
                 <!-- Menu Card -->
                 <button @click="currentView = 'menu'" 
-                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-shadow">
+                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover">
                     <div class="text-6xl mb-4">📋</div>
                     <h3 class="text-2xl font-bold text-gray-800 mb-2">Menu</h3>
                     <p class="text-gray-600">Découvrez notre carte</p>
@@ -52,7 +59,7 @@
 
                 <!-- Panier Card -->
                 <button @click="currentView = 'cart'" 
-                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-shadow relative">
+                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover relative">
                     <div class="text-6xl mb-4">🛒</div>
                     <h3 class="text-2xl font-bold text-gray-800 mb-2">Panier</h3>
                     <p class="text-gray-600">Vos articles sélectionnés</p>
@@ -64,7 +71,7 @@
 
                 <!-- Historique Card -->
                 <button @click="currentView = 'history'" 
-                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-shadow">
+                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover">
                     <div class="text-6xl mb-4">📜</div>
                     <h3 class="text-2xl font-bold text-gray-800 mb-2">Historique</h3>
                     <p class="text-gray-600">Vos commandes passées</p>
@@ -86,6 +93,12 @@
 
                     <h1 class="text-4xl font-bold text-gray-800 text-center flex-1">
                         Notre Menu
+                        <!-- NOUVEAU : Indicateur d'ajout à une commande existante -->
+                        <template x-if="isAddingToExistingOrder">
+                            <span class="text-lg text-blue-600 block mt-2">
+                                ➕ Ajout à la commande #<span x-text="currentOrderId"></span>
+                            </span>
+                        </template>
                     </h1>
 
                     <!-- Bouton Panier avec badge -->
@@ -118,52 +131,62 @@
                     </div>
                 </div>
 
-                <!-- Menu Items -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
+                <!-- Menu Items - CORRIGÉ : Design amélioré pour les cartes -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
                     <template x-for="item in filteredMenu" :key="item.id">
-                        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1 relative overflow-hidden group"
+                        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 transform transition-all duration-300 hover:shadow-xl hover:-translate-y-2 relative overflow-hidden group flex flex-col h-full"
                              :class="{'opacity-60': !item.available}">
                             
                             <div class="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-                            <div class="relative z-10 flex justify-between items-start mb-4">
-                                <div class="flex-1">
-                                    <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-700 transition-colors duration-300" x-text="item.name"></h3>
-                                    <p class="text-gray-600 text-sm leading-relaxed" x-text="item.description"></p>
-                                </div>
-                                <template x-if="item.promotion_discount">
-                                    <span class="bg-gradient-to-r from-red-500 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-bold ml-4 shadow-md">
-                                        PROMO
-                                    </span>
-                                </template>
-                            </div>
-                            
-                            <div class="relative z-10 flex justify-between items-center mt-6">
-                                <div class="flex items-center space-x-3">
+                            <div class="relative z-10 flex-1">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="flex-1">
+                                        <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-700 transition-colors duration-300" x-text="item.name"></h3>
+                                        <p class="text-gray-600 text-sm leading-relaxed mb-4" x-text="item.description"></p>
+                                    </div>
                                     <template x-if="item.promotion_discount">
-                                        <div class="flex items-center space-x-2">
-                                            <span class="text-xl font-bold text-blue-700" x-text="formatPrice(item.price)"></span>
-                                            <span class="text-sm text-gray-400 line-through" x-text="formatPrice(item.original_price)"></span>
-                                        </div>
-                                    </template>
-                                    <template x-if="!item.promotion_discount">
-                                        <span class="text-xl font-bold text-gray-800" x-text="formatPrice(item.price)"></span>
-                                    </template>
-                                </div>
-                                
-                                <div class="flex items-center space-x-3">
-                                    <template x-if="!item.available">
-                                        <span class="text-sm text-gray-500 font-medium">
-                                            Indisponible
+                                        <span class="bg-gradient-to-r from-red-500 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-bold ml-4 shadow-md flex-shrink-0">
+                                            PROMO
                                         </span>
                                     </template>
-                                    <template x-if="item.available">
-                                        <button 
-                                            @click="addToCart(item)" 
-                                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg">
-                                            Ajouter
-                                        </button>
-                                    </template>
+                                </div>
+                            </div>
+                            
+                            <!-- CORRIGÉ : Section prix et bouton mieux organisée -->
+                            <div class="relative z-10 mt-auto pt-4 border-t border-gray-100">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center space-x-2">
+                                        <template x-if="item.promotion_discount">
+                                            <div class="flex flex-col">
+                                                <span class="text-xl font-bold text-blue-700" x-text="formatPrice(item.price)"></span>
+                                                <span class="text-sm text-gray-400 line-through" x-text="formatPrice(item.original_price)"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="!item.promotion_discount">
+                                            <span class="text-xl font-bold text-gray-800" x-text="formatPrice(item.price)"></span>
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="flex items-center">
+                                        <template x-if="!item.available">
+                                            <span class="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-2 rounded-lg">
+                                                Indisponible
+                                            </span>
+                                        </template>
+                                        <template x-if="item.available">
+                                            <!-- CORRIGÉ : Bouton plus visible -->
+                                            <button 
+                                                @click="addToCart(item)" 
+                                                class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center space-x-2 min-w-[120px] justify-center">
+                                                <span class="text-lg">+</span>
+                                                <span>
+                                                    <template x-if="isAddingToExistingOrder">Ajouter</template>
+                                                    <template x-if="!isAddingToExistingOrder">Ajouter</template>
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -195,6 +218,12 @@
                     </button>
                     <h2 class="text-3xl font-bold text-gray-800 text-center">
                         Panier <span x-text="cartCount > 0 ? `(${cartCount} article${cartCount > 1 ? 's' : ''})` : ''"></span>
+                        <!-- NOUVEAU : Indicateur d'ajout à une commande existante -->
+                        <template x-if="isAddingToExistingOrder">
+                            <span class="text-lg text-blue-600 block mt-2">
+                                ➕ Ajout à la commande #<span x-text="currentOrderId"></span>
+                            </span>
+                        </template>
                     </h2>
                     <div class="w-20"></div>
                 </div>
@@ -284,10 +313,19 @@
                                 </div>
                                 
                                 <div class="space-y-3">
-                                    <button @click="showPaymentModal = true" 
-                                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
-                                        🍽️ Commander sur place
-                                    </button>
+                                    <!-- CORRIGÉ : Boutons avec les bonnes fonctions -->
+                                    <template x-if="isAddingToExistingOrder">
+                                        <button @click="showAddToOrderConfirmationModal = true" 
+                                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                            ➕ Ajouter à la commande existante
+                                        </button>
+                                    </template>
+                                    <template x-if="!isAddingToExistingOrder">
+                                        <button @click="showPaymentModal = true" 
+                                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                            🍽️ Commander sur place
+                                        </button>
+                                    </template>
                                     
                                     <button @click="showDeliveryModal = true" 
                                             class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
@@ -354,7 +392,7 @@
             </div>
         </template>
 
-        <!-- Modal de paiement -->
+        <!-- Modal de paiement pour nouvelle commande - CORRIGÉ -->
         <template x-if="showPaymentModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
@@ -395,6 +433,48 @@
                 </div>
             </div>
         </template>
+
+        <!-- CORRIGÉ : Modal de confirmation pour ajout à commande existante (variable corrigée) -->
+        <template x-if="showAddToOrderConfirmationModal">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Ajouter à la commande existante</h3>
+                    <p class="text-gray-600 mb-6">Vous allez ajouter ces articles à votre commande en cours #<span x-text="currentOrderId"></span></p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de téléphone</label>
+                            <input type="tel" x-model="phoneNumber" 
+                                   placeholder="ex: 77 123 45 67"
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div class="flex justify-between items-center text-lg font-semibold">
+                                <span class="text-gray-700">Total à payer</span>
+                                <span class="text-gray-800" x-text="formatPrice(cartTotal)"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 mt-6">
+                        <button @click="showAddToOrderConfirmationModal = false" 
+                                class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                            Annuler
+                        </button>
+                        <button @click="addToExistingOrder()" 
+                                :disabled="!phoneNumber.trim() || isProcessingPayment"
+                                :class="!phoneNumber.trim() || isProcessingPayment ? 
+                                    'bg-blue-400 cursor-not-allowed' : 
+                                    'bg-blue-600 hover:bg-blue-700'"
+                                class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                            <template x-if="isProcessingPayment">Traitement...</template>
+                            <template x-if="!isProcessingPayment">Ajouter à la commande</template>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
 
     <script>
@@ -407,14 +487,33 @@
             cartCount: {{ $cartCount }},
             cartTotal: 0,
             showPaymentModal: false,
+            showAddToOrderConfirmationModal: false, // CORRIGÉ : Variable renommée pour éviter la confusion
             showDeliveryModal: false,
             phoneNumber: '',
             isProcessingPayment: false,
             hasActiveOrder: @json($currentOrder !== null),
             currentOrder: @json($currentOrder),
 
+            // NOUVEAU : Variables pour l'ajout à une commande existante
+            isAddingToExistingOrder: false,
+            currentOrderId: null,
+
             init() {
                 this.calculateCartTotal();
+                this.checkForExistingOrder();
+            },
+
+            // NOUVEAU : Vérifier si on ajoute à une commande existante
+            checkForExistingOrder() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const orderId = urlParams.get('order_id') || localStorage.getItem('currentOrderId');
+                
+                if (orderId) {
+                    this.isAddingToExistingOrder = true;
+                    this.currentOrderId = orderId;
+                    localStorage.setItem('currentOrderId', orderId);
+                    localStorage.setItem('addingToExistingOrder', 'true');
+                }
             },
 
             get filteredMenu() {
@@ -434,10 +533,17 @@
 
             async addToCart(item) {
                 try {
-                    const response = await axios.post('{{ route("client.cart.add") }}', {
+                    const requestData = {
                         menu_item_id: item.id,
                         quantity: 1
-                    });
+                    };
+
+                    // NOUVEAU : Ajouter l'ID de commande si on ajoute à une commande existante
+                    if (this.isAddingToExistingOrder && this.currentOrderId) {
+                        requestData.order_id = this.currentOrderId;
+                    }
+
+                    const response = await axios.post('{{ route("client.cart.add") }}', requestData);
 
                     if (response.data.success) {
                         this.cartCount = response.data.cart_count;
@@ -471,6 +577,54 @@
                 } catch (error) {
                     console.error('Erreur lors de la mise à jour du panier:', error);
                     this.showToast('Erreur lors de la mise à jour', 'error');
+                }
+            },
+
+            // NOUVEAU : Fonction pour ajouter à une commande existante
+            async addToExistingOrder() {
+                if (!this.phoneNumber.trim()) {
+                    this.showToast('Veuillez entrer votre numéro de téléphone', 'error');
+                    return;
+                }
+
+                this.isProcessingPayment = true;
+
+                try {
+                    const response = await axios.post('{{ route("client.order.place") }}', {
+                        order_type: 'sur_place', // Toujours sur place pour les ajouts
+                        phone_number: this.phoneNumber,
+                        existing_order_id: this.currentOrderId // NOUVEAU : ID de commande existante
+                    });
+
+                    if (response.data.success) {
+                        this.showAddToOrderConfirmationModal = false; // CORRIGÉ : Fermer le bon modal
+                        this.cartItems = [];
+                        this.cartCount = 0;
+                        this.cartTotal = 0;
+                        this.phoneNumber = '';
+                        
+                        this.showToast('Articles ajoutés à la commande avec succès!');
+                        
+                        if (response.data.redirect_url) {
+                            setTimeout(() => {
+                                // Nettoyer le localStorage
+                                localStorage.removeItem('currentOrderId');
+                                localStorage.removeItem('addingToExistingOrder');
+                                window.location.href = response.data.redirect_url;
+                            }, 1500);
+                        }
+                    } else {
+                        this.showToast(response.data.message || 'Erreur lors de l\'ajout à la commande', 'error');
+                    }
+                } catch (error) {
+                    console.error('Erreur lors de l\'ajout à la commande:', error);
+                    if (error.response && error.response.data.message) {
+                        this.showToast(error.response.data.message, 'error');
+                    } else {
+                        this.showToast('Erreur lors de l\'ajout à la commande', 'error');
+                    }
+                } finally {
+                    this.isProcessingPayment = false;
                 }
             },
 

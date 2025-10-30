@@ -270,6 +270,51 @@
     </div>
 </div>
 
+<!-- Modal pour ajouter du temps -->
+<div id="addTimeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+        <h3 class="text-2xl font-bold text-gray-800 mb-2">Ajouter du temps</h3>
+        <p class="text-gray-600 mb-4">Commande #<span id="modalOrderIdTime"></span></p>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Temps supplémentaire (minutes)
+                </label>
+                <select id="additionalTime" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="5">+5 minutes</option>
+                    <option value="10">+10 minutes</option>
+                    <option value="15">+15 minutes</option>
+                    <option value="20">+20 minutes</option>
+                    <option value="30">+30 minutes</option>
+                </select>
+            </div>
+            
+            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-700">Temps actuel estimé:</span>
+                    <span class="font-semibold" id="currentTimeDisplay">0 min</span>
+                </div>
+                <div class="flex justify-between items-center text-sm mt-2">
+                    <span class="text-gray-700">Nouveau temps estimé:</span>
+                    <span class="font-semibold text-blue-600" id="newTimeDisplay">0 min</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex gap-3 mt-6">
+            <button type="button" id="cancelAddTime" 
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                Annuler
+            </button>
+            <button type="button" id="confirmAddTime" 
+                    class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                Ajouter le temps
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Modaux globaux pour le menu -->
 <div id="globalAddModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
@@ -532,6 +577,68 @@ function openTimeModal(orderId) {
 
 function closeTimeModal() {
     document.getElementById('timeModal').style.display = 'none';
+}
+
+// Fonctions pour le modal d'ajout de temps
+function openAddTimeModal(orderId, currentTime) {
+    console.log('⏱️ Ouverture modal ajout temps pour commande:', orderId, 'Temps actuel:', currentTime);
+    
+    document.getElementById('addTimeModal').classList.remove('hidden');
+    document.getElementById('modalOrderIdTime').textContent = orderId;
+    document.getElementById('currentTimeDisplay').textContent = currentTime + ' min';
+    
+    // Stocker l'ID de commande
+    document.getElementById('addTimeModal').setAttribute('data-order-id', orderId);
+    document.getElementById('addTimeModal').setAttribute('data-current-time', currentTime);
+    
+    // Calculer le nouveau temps
+    updateNewTimeDisplay();
+}
+
+function closeAddTimeModal() {
+    document.getElementById('addTimeModal').classList.add('hidden');
+}
+
+function updateNewTimeDisplay() {
+    const currentTime = parseInt(document.getElementById('addTimeModal').getAttribute('data-current-time'));
+    const additionalTime = parseInt(document.getElementById('additionalTime').value);
+    const newTime = currentTime + additionalTime;
+    
+    document.getElementById('newTimeDisplay').textContent = newTime + ' min';
+}
+
+async function addTimeToOrder(orderId, additionalTime) {
+    try {
+        console.log('⏱️ Ajout de temps pour commande:', orderId, 'Temps supplémentaire:', additionalTime);
+        
+        const response = await fetch(`/admin/orders/${orderId}/add-time`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                additional_time: additionalTime
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('⏱️ Temps supplémentaire ajouté avec succès!', 'success');
+            closeAddTimeModal();
+            
+            // Recharger les commandes
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadOrders('pending');
+            }
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout de temps:', error);
+        showToast('❌ Erreur lors de l\'ajout de temps', 'error');
+    }
 }
 
 // Gestion de la soumission du formulaire de temps
@@ -1061,6 +1168,7 @@ document.addEventListener('change', function(e) {
 // Fermer les modaux en cliquant à l'extérieur
 document.addEventListener('click', function(e) {
     if (e.target.id === 'timeModal') closeTimeModal();
+    if (e.target.id === 'addTimeModal') closeAddTimeModal();
     if (e.target.id === 'globalAddModal') globalCloseModal();
     if (e.target.id === 'promotionModal') closePromotionModal();
     if (e.target.id === 'orderDetailsModal') closeOrderDetailsModal();
@@ -1071,6 +1179,7 @@ document.addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeTimeModal();
+        closeAddTimeModal();
         globalCloseModal();
         closePromotionModal();
         closeOrderDetailsModal();
@@ -1259,6 +1368,25 @@ document.addEventListener('alpine:init', () => {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard loaded');
     
+    // Événements pour le modal d'ajout de temps
+    document.getElementById('cancelAddTime')?.addEventListener('click', closeAddTimeModal);
+    
+    document.getElementById('confirmAddTime')?.addEventListener('click', function() {
+        const orderId = document.getElementById('addTimeModal').getAttribute('data-order-id');
+        const additionalTime = parseInt(document.getElementById('additionalTime').value);
+        console.log('✅ Confirmation ajout temps:', orderId, additionalTime);
+        addTimeToOrder(orderId, additionalTime);
+    });
+    
+    document.getElementById('additionalTime')?.addEventListener('change', updateNewTimeDisplay);
+    
+    // Fermer le modal en cliquant à l'extérieur
+    document.getElementById('addTimeModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeAddTimeModal();
+        }
+    });
+    
     // Délégation d'événements globale
     document.addEventListener('click', function(e) {
         // Voir détails commande
@@ -1271,6 +1399,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains('accept-order-btn')) {
             const orderId = e.target.dataset.orderId;
             openTimeModal(orderId);
+        }
+
+        // AJOUT : Boutons "Ajouter du Temps"
+        if (e.target.classList.contains('add-time-btn')) {
+            e.preventDefault();
+            const orderId = e.target.getAttribute('data-order-id');
+            const currentTime = e.target.getAttribute('data-current-time') || 0;
+            console.log('⏱️ Clic sur bouton ajouter temps:', orderId);
+            openAddTimeModal(orderId, parseInt(currentTime));
         }
 
         // Ajouter client

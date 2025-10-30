@@ -133,18 +133,30 @@
                         <h3 class="text-xl font-bold text-gray-800 mb-4">Actions</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <button @click="requestDelivery()" 
-                                    :disabled="orderStatus === 'terminé'"
-                                    :class="orderStatus === 'terminé' ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'"
+                                    :disabled="orderStatus === 'terminé' || orderStatus === 'prêt'"
+                                    :class="(orderStatus === 'terminé' || orderStatus === 'prêt') ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'"
                                     class="w-full text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                 🚗 Demander la livraison
                             </button>
-                            <button onclick="window.location.href = '/client/dashboard'" 
-                                    :disabled="orderStatus === 'terminé'"
-                                    :class="orderStatus === 'terminé' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                            <!-- CORRIGÉ : Bouton désactivé quand la commande est prête -->
+                            <button @click="addToMenu()" 
+                                    :disabled="orderStatus === 'terminé' || orderStatus === 'prêt'"
+                                    :class="(orderStatus === 'terminé' || orderStatus === 'prêt') ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
                                     class="w-full text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                 📋 Ajouter au menu
                             </button>
                         </div>
+                        <!-- CORRIGÉ : Message d'information quand le bouton est désactivé -->
+                        <template x-if="orderStatus === 'prêt'">
+                            <p class="text-sm text-gray-500 mt-3 text-center">
+                                ⚠️ Impossible d'ajouter des articles - La commande est prête à être servie
+                            </p>
+                        </template>
+                        <template x-if="orderStatus === 'terminé'">
+                            <p class="text-sm text-gray-500 mt-3 text-center">
+                                ✅ Commande terminée - Merci pour votre visite !
+                            </p>
+                        </template>
                     </div>
                 </div>
 
@@ -319,6 +331,21 @@
                     return 'text-gray-400';
                 },
 
+                // CORRIGÉ : Rediriger vers le menu avec l'ID de commande - Désactivé quand prêt
+                addToMenu() {
+                    if (this.orderStatus === 'prêt' || this.orderStatus === 'terminé') {
+                        this.showToast('Impossible d\'ajouter des articles à une commande prête ou terminée', 'error');
+                        return;
+                    }
+                    
+                    // Stocker l'ID de commande dans le localStorage pour le récupérer dans le dashboard
+                    localStorage.setItem('currentOrderId', this.orderId);
+                    localStorage.setItem('addingToExistingOrder', 'true');
+                    
+                    // Rediriger vers le dashboard
+                    window.location.href = '/client/dashboard?order_id=' + this.orderId;
+                },
+
                 startTimer() {
                     // Ne démarrer le timer que si la commande est en cours et a un temps estimé
                     if (this.orderStatus !== 'en_cours' || this.estimatedTime <= 0) {
@@ -393,6 +420,11 @@
                 },
 
                 requestDelivery() {
+                    if (this.orderStatus === 'prêt' || this.orderStatus === 'terminé') {
+                        this.showToast('Impossible de demander la livraison pour une commande prête ou terminée', 'error');
+                        return;
+                    }
+                    
                     if (confirm('Souhaitez-vous que nous vous apportions votre commande à table ?')) {
                         // Logique pour demander la livraison
                         this.showToast('Service en table demandé !');

@@ -227,7 +227,6 @@ class AdminController extends Controller
         }
     }
 
-     
     /**
      * Gestion des clients (version AJAX pour le dashboard)
      */
@@ -239,11 +238,9 @@ class AdminController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            // Récupérer tous les clients disponibles pour l'ajout
+            // MODIFICATION : Récupérer seulement les clients qui ne sont liés à AUCUN admin
             $availableClients = User::where('role', 'client')
-                ->whereDoesntHave('linkedAdmins', function($query) {
-                    $query->where('admin_id', Auth::id());
-                })
+                ->whereDoesntHave('linkedAdmins') // Pas de relation avec aucun admin
                 ->orderBy('name')
                 ->get();
 
@@ -264,10 +261,9 @@ class AdminController extends Controller
     public function getAvailableClients()
     {
         try {
+            // MODIFICATION : Récupérer seulement les clients qui ne sont liés à AUCUN admin
             $availableClients = User::where('role', 'client')
-                ->whereDoesntHave('linkedAdmins', function($query) {
-                    $query->where('admin_id', Auth::id());
-                })
+                ->whereDoesntHave('linkedAdmins') // Pas de relation avec aucun admin
                 ->orderBy('name')
                 ->get()
                 ->map(function($client) {
@@ -308,10 +304,18 @@ class AdminController extends Controller
             $admin = Auth::user();
             $clientIds = $request->client_ids;
 
-            // Vérifier que les clients existent et sont bien des clients
+            // MODIFICATION : Vérifier que les clients existent, sont bien des clients et ne sont liés à aucun admin
             $clients = User::whereIn('id', $clientIds)
                 ->where('role', 'client')
+                ->whereDoesntHave('linkedAdmins') // Pas déjà lié à un admin
                 ->get();
+
+            if ($clients->count() !== count($clientIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Certains clients sont déjà liés à un autre administrateur'
+                ], 400);
+            }
 
             // Lier les clients à l'admin
             $admin->linkedClients()->syncWithoutDetaching($clients->pluck('id')->toArray());
@@ -648,56 +652,6 @@ class AdminController extends Controller
     }
 
     /**
-     * Statistiques détaillées (CORRIGÉ)
-     */
-    private function getDetailedStats($startDate, $endDate, $linkedClientTables = [])
-    {
-        $allOrders = Order::whereIn('table_number', $linkedClientTables)
-                        ->whereBetween('created_at', [$startDate, $endDate])->get();
-        $completedOrders = Order::whereIn('table_number', $linkedClientTables)
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->whereIn('status', ['terminé', 'livré'])
-            ->with('items')
-            ->get();
-
-        // Commandes par statut
-        $ordersByStatus = [
-            'terminé' => $allOrders->where('status', 'terminé')->count(),
-            'livré' => $allOrders->where('status', 'livré')->count(),
-            'en_cours' => $allOrders->where('status', 'en_cours')->count(),
-            'prêt' => $allOrders->where('status', 'prêt')->count(),
-        ];
-
-        // Analyse des revenus
-        $revenueAnalysis = [
-            'sur_place' => $completedOrders->where('order_type', 'sur_place')->sum('total'),
-            'livraison' => $completedOrders->where('order_type', 'livraison')->sum('total'),
-        ];
-
-        // Performance du menu - CORRECTION
-        $menuItems = OrderItem::whereHas('order', function($query) use ($startDate, $endDate, $linkedClientTables) {
-                $query->whereIn('table_number', $linkedClientTables)
-                      ->whereBetween('created_at', [$startDate, $endDate])
-                      ->whereIn('status', ['terminé', 'livré']);
-            })
-            ->select('category', DB::raw('SUM(quantity) as total_quantity'))
-            ->groupBy('category')
-            ->get()
-            ->pluck('total_quantity', 'category');
-
-        $menuPerformance = [
-            'repas' => $menuItems['repas'] ?? 0,
-            'boisson' => $menuItems['boisson'] ?? 0,
-        ];
-
-        return [
-            'ordersByStatus' => $ordersByStatus,
-            'revenueAnalysis' => $revenueAnalysis,
-            'menuPerformance' => $menuPerformance,
-        ];
-    }
-
-    /**
      * Sauvegarder un rapport (CORRIGÉ)
      */
     public function saveReport(Request $request)
@@ -865,6 +819,94 @@ class AdminController extends Controller
                 'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Ajouter du temps à une commande existante avec ajout d'articles
+     */
+    public function addTimeToOrder(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'additional_time' => 'required|integer|min:5|max:120'
+            ]);
+
+            $order = Order::with(['items'])->findOrFail($id);
+            
+            // Vérifier que la commande est en cours et qu'il y a eu des ajouts
+            if (!in_array($order->status, ['commandé', 'en_cours'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible d\'ajouter du temps à une commande terminée'
+                ], 400);
+            }
+
+            // Vérifier s'il y a eu des ajouts d'articles (plus d'un item ou quantités modifiées)
+            $hasAdditions = $this->checkOrderHasAdditions($order);
+            
+            if (!$hasAdditions) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ajout de temps réservé aux commandes avec articles supplémentaires'
+                ], 400);
+            }
+
+            // Ajouter le temps supplémentaire
+            $currentTime = $order->estimated_time ?? 0;
+            $order->estimated_time = $currentTime + $request->additional_time;
+            $order->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Temps supplémentaire ajouté avec succès!',
+                'new_estimated_time' => $order->estimated_time
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'ajout de temps: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Vérifier si une commande a des ajouts d'articles (CORRIGÉ)
+     */
+    private function checkOrderHasAdditions(Order $order)
+    {
+        // Vérifier si la commande a été modifiée après sa création initiale
+        // On considère qu'il y a des ajouts si des articles ont été ajoutés après l'acceptation
+        
+        $items = $order->items;
+        
+        // Si la commande a été créée il y a plus de 5 minutes et qu'il y a des items créés récemment
+        $orderAge = $order->created_at->diffInMinutes(now());
+        
+        if ($orderAge > 5) {
+            // Vérifier s'il y a des items créés récemment (dans les 5 dernières minutes)
+            $recentItems = $items->filter(function($item) {
+                return $item->created_at->diffInMinutes(now()) <= 5;
+            });
+            
+            if ($recentItems->count() > 0) {
+                return true;
+            }
+        }
+
+        // Vérifier s'il y a plus d'un type d'article OU des quantités importantes
+        if ($items->count() > 1) {
+            return true;
+        }
+
+        // Vérifier les quantités totales
+        $totalQuantity = $items->sum('quantity');
+        if ($totalQuantity > 3) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
