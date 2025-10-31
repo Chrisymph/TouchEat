@@ -9,7 +9,7 @@
 
     <!-- Onglets du menu -->
 <div class="mb-6 flex justify-center">
-  <div class="bg-white shadow rounded-lg overflow-hidden w-full max-w-7xl">
+<div class="bg-white shadow rounded-lg overflow-hidden w-full max-w-7xl"> 
     <div class="flex divide-x divide-gray-200">
       
       <button data-category="repas" 
@@ -29,8 +29,8 @@
       </button>
 
     </div>
-  </div>
-</div>
+  </div> 
+</div> 
 
 
     <!-- Contenu des onglets -->

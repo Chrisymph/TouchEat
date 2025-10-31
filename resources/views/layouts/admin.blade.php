@@ -96,8 +96,8 @@
             track.style.backgroundColor = '#ef4444'; // rouge
             knob.style.transform = 'translateX(0)';
         }
-        }
-    </script>
+        } 
+    </script> 
 
 </body>
 </html>
