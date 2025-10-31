@@ -10,7 +10,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-
 // Route home (redirection générale après connexion)
 Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
 
@@ -31,7 +30,15 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/orders', [AdminController::class, 'orders'])->name('admin.orders');
     Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax');
     Route::put('/orders/{id}/status', [AdminController::class, 'updateOrderStatus'])->name('admin.orders.status');
+    
+    // ROUTES CORRIGÉES POUR LES DÉTAILS DE COMMANDE
     Route::get('/orders/{id}', [AdminController::class, 'showOrder'])->name('admin.orders.show');
+    Route::get('/orders/{id}/ajax', [AdminController::class, 'showOrder'])->name('admin.orders.ajax.details');
+    
+    // NOUVELLE ROUTE POUR L'AJOUT DE TEMPS - CORRECTION
+    Route::post('/orders/{id}/add-time', [AdminController::class, 'addTimeToOrder'])->name('admin.orders.add-time');
+    
+    Route::post('/orders/{id}/status-ajax', [AdminController::class, 'updateOrderStatusAjax'])->name('admin.orders.status.ajax');
     
     Route::get('/menu/ajax', [AdminController::class, 'menuAjax'])->name('admin.menu.ajax');
     Route::get('/menu', [AdminController::class, 'menu'])->name('admin.menu');
@@ -42,6 +49,15 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/menu/{id}/promotion', [AdminController::class, 'addPromotion'])->name('admin.menu.promotion.add');
     Route::delete('/menu/{id}/promotion', [AdminController::class, 'removePromotion'])->name('admin.menu.promotion.remove');
     Route::get('/menu/{id}/ajax', [AdminController::class, 'getMenuItem'])->name('admin.menu.item.ajax');
+
+    // Routes pour la gestion des clients
+    Route::get('/clients/ajax', [AdminController::class, 'clientsAjax'])->name('admin.clients.ajax');
+    Route::get('/clients/available', [AdminController::class, 'getAvailableClients'])->name('admin.clients.available');
+    Route::post('/clients/link', [AdminController::class, 'linkClients'])->name('admin.clients.link');
+    Route::delete('/clients/{clientId}/unlink', [AdminController::class, 'unlinkClient'])->name('admin.clients.unlink');
+    Route::post('/clients/{clientId}/suspend', [AdminController::class, 'suspendClient'])->name('admin.clients.suspend');
+    Route::post('/clients/{clientId}/activate', [AdminController::class, 'activateClient'])->name('admin.clients.activate');
+    
     // Routes pour les rapports
     Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
     Route::get('/reports/ajax', [AdminController::class, 'reportsAjax'])->name('admin.reports.ajax');
@@ -51,8 +67,15 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
 
-/// Routes client
+// Routes client
 Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
-    // Ajoutez d'autres routes client ici
+    Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
+    Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
+    Route::post('/order/place', [ClientController::class, 'placeOrder'])->name('client.order.place');
+    Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
+    Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
+    Route::post('/order/{orderId}/add-item', [ClientController::class, 'addToExistingOrder'])->name('client.order.add-item');
+    Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
