@@ -824,52 +824,62 @@ class AdminController extends Controller
     /**
      * Ajouter du temps à une commande existante avec ajout d'articles
      */
-    public function addTimeToOrder(Request $request, $id)
-    {
-        try {
-            $request->validate([
-                'additional_time' => 'required|integer|min:5|max:120'
-            ]);
+/**
+ * Ajouter du temps à une commande existante avec ajout d'articles (sécurisé)
+ */
+public function addTimeToOrder(\Illuminate\Http\Request $request, $id)
+{
+    $request->validate([
+        'additional_time' => 'required|integer|min:1|max:240'
+    ]);
 
-            $order = Order::with(['items'])->findOrFail($id);
-            
-            // Vérifier que la commande est en cours et qu'il y a eu des ajouts
-            if (!in_array($order->status, ['commandé', 'en_cours'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible d\'ajouter du temps à une commande terminée'
-                ], 400);
-            }
+    try {
+        $order = Order::with('items')->findOrFail($id);
 
-            // Vérifier s'il y a eu des ajouts d'articles (plus d'un item ou quantités modifiées)
-            $hasAdditions = $this->checkOrderHasAdditions($order);
-            
-            if (!$hasAdditions) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ajout de temps réservé aux commandes avec articles supplémentaires'
-                ], 400);
-            }
-
-            // Ajouter le temps supplémentaire
-            $currentTime = $order->estimated_time ?? 0;
-            $order->estimated_time = $currentTime + $request->additional_time;
-            $order->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Temps supplémentaire ajouté avec succès!',
-                'new_estimated_time' => $order->estimated_time
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
+        // La commande doit être en cours (ou commandé)
+        if (!in_array($order->status, ['commandé', 'en_cours'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'ajout de temps: ' . $e->getMessage()
-            ], 500);
+                'message' => "Impossible d'ajouter du temps : la commande n'est pas active."
+            ], 400);
         }
+
+        // Vérifier qu'il y a eu au moins une commande précédente du client/table
+        if (!$order->hasPreviousOrders()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Impossible d'ajouter du temps : le client n'a pas de commande précédente terminée."
+            ], 400);
+        }
+
+        // Vérifier qu'il y a eu de réels ajouts d'articles pendant la commande en cours
+        // (seuil 30s, identique à celui du modèle)
+        if (!$order->hasRecentAdditions(30)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Ajout de temps réservé aux commandes où des articles ont été ajoutés pendant la commande."
+            ], 400);
+        }
+
+        // Ajouter le temps
+        $additional = (int)$request->input('additional_time', 0);
+        $order->estimated_time = ($order->estimated_time ?? 0) + $additional;
+        $order->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Temps supplémentaire ajouté avec succès.',
+            'new_estimated_time' => $order->estimated_time
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur serveur : ' . $e->getMessage()
+        ], 500);
     }
+}
+
 
     /**
      * Vérifier si une commande a des ajouts d'articles (CORRIGÉ)
