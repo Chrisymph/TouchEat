@@ -7,31 +7,9 @@
                 Analyses basées sur {{ $totalOrders }} commandes terminées
             </p>
         </div>
-        <button @click="saveReport()" 
-                class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
-            💾 Sauvegarder ce rapport
-        </button>
     </div>
 
-    <!-- Filtres par date -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <form @submit.prevent="applyFilters()" class="flex gap-4 items-end">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
-                <input type="date" x-model="filters.start_date" 
-                       class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
-                <input type="date" x-model="filters.end_date" 
-                       class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <button type="submit" 
-                    class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                Appliquer
-            </button>
-        </form>
-    </div>
+
 
     <!-- Métriques clés -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
