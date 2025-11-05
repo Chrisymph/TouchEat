@@ -37,7 +37,7 @@
     <!-- Contenu principal -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         @if(session('success'))
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6" id="success-notification">
                 {{ session('success') }}
             </div>
         @endif
@@ -57,23 +57,69 @@
 
     <script>
         // Fonctions utilitaires pour les interactions
-        function showToast(message, type = 'success') {
+        function showToast(message, type = 'success', duration = 4000) {
+            const existingToasts = document.querySelectorAll('.custom-toast');
+            existingToasts.forEach(toast => toast.remove());
+
             const toast = document.createElement('div');
-            toast.className = `fixed top-4 right-4 p-4 rounded-md text-white z-50 ${
+            toast.className = `custom-toast fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
                 type === 'success' ? 'bg-green-500' : 'bg-red-500'
             }`;
             toast.textContent = message;
             document.body.appendChild(toast);
-            
-            setTimeout(() => toast.remove(), 3000);
+
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.style.transition = 'opacity 0.5s ease';
+                    toast.style.opacity = '0';
+                    setTimeout(() => {
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(toast);
+                        }
+                    }, 500);
+                }
+            }, duration);
         }
 
         function confirmAction(message) {
             return confirm(message);
         }
 
-        // Vérifier que Chart.js est bien chargé
+        // Masquer automatiquement les notifications de succès après 10 secondes
         document.addEventListener('DOMContentLoaded', function() {
+            // Notification de succès Laravel
+            const successNotification = document.getElementById('success-notification');
+            if (successNotification) {
+                setTimeout(() => {
+                    if (successNotification.parentNode) {
+                        successNotification.style.transition = 'opacity 0.5s ease';
+                        successNotification.style.opacity = '0';
+                        setTimeout(() => {
+                            if (successNotification.parentNode) {
+                                successNotification.parentNode.removeChild(successNotification);
+                            }
+                        }, 500);
+                    }
+                }, 10000); // 10 secondes
+            }
+
+            // Gestion spécifique pour les notifications Alpine.js
+            const flashMessages = document.querySelectorAll('[x-data="{ show: true }"]');
+            flashMessages.forEach(message => {
+                setTimeout(() => {
+                    if (message && message.parentNode) {
+                        message.style.transition = 'opacity 0.5s ease';
+                        message.style.opacity = '0';
+                        setTimeout(() => {
+                            if (message.parentNode) {
+                                message.parentNode.removeChild(message);
+                            }
+                        }, 500);
+                    }
+                }, 10000);
+            });
+
+            // Vérifier que Chart.js est bien chargé
             if (typeof Chart === 'undefined') {
                 console.error('Chart.js non chargé correctement');
             } else {
@@ -81,5 +127,22 @@
             }
         });
     </script>
+
+    <style>
+        .custom-toast {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
 </body>
 </html>

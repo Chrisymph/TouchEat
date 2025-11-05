@@ -660,7 +660,8 @@ async function addTimeToOrder(orderId, additionalTime) {
             
             // Recharger les commandes
             if (window.dashboardComponent) {
-                window.dashboardComponent.loadOrders('pending');
+                const currentStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
+                window.dashboardComponent.loadOrders(currentStatus);
             }
         } else {
             showToast('❌ ' + data.message, 'error');
@@ -715,7 +716,8 @@ document.getElementById('timeForm').addEventListener('submit', function(e) {
             
             // Recharger les commandes
             if (window.dashboardComponent) {
-                window.dashboardComponent.loadOrders();
+                const currentStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
+                window.dashboardComponent.loadOrders(currentStatus);
             }
         } else {
             throw new Error(result.message || 'Erreur inconnue');
@@ -824,6 +826,19 @@ function globalOpenAddModal() {
     document.getElementById('globalAddModal').style.display = 'flex';
 }
 
+function globalOpenAddModalWithCategory(category) {
+    document.getElementById('globalMenuForm').reset();
+    document.getElementById('globalModalTitle').textContent = 'Ajouter un nouvel article';
+    document.getElementById('globalSubmitText').textContent = 'Ajouter l\'article';
+    document.getElementById('globalMethodField').innerHTML = '';
+    document.getElementById('globalMenuForm').action = '{{ route("admin.menu.add") }}';
+    
+    // Présélectionner la catégorie actuelle
+    document.getElementById('globalItemCategory').value = category;
+    
+    document.getElementById('globalAddModal').style.display = 'flex';
+}
+
 function globalCloseModal() {
     document.getElementById('globalAddModal').style.display = 'none';
 }
@@ -875,10 +890,11 @@ document.getElementById('globalMenuForm').addEventListener('submit', async funct
             // Afficher message de succès
             showToast('✅ ' + result.message, 'success');
             
-            // Recharger le contenu du menu après un délai
+            // Recharger le contenu du menu avec la même catégorie
             setTimeout(() => {
                 if (window.dashboardComponent) {
-                    window.dashboardComponent.loadMenu();
+                    const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                    window.dashboardComponent.loadMenu(savedCategory);
                 }
             }, 1000);
             
@@ -956,7 +972,8 @@ document.getElementById('promotionForm').addEventListener('submit', async functi
             
             // Recharger le menu
             if (window.dashboardComponent) {
-                window.dashboardComponent.loadMenu();
+                const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                window.dashboardComponent.loadMenu(savedCategory);
             }
         } else {
             showToast('❌ ' + result.message, 'error');
@@ -970,6 +987,189 @@ document.getElementById('promotionForm').addEventListener('submit', async functi
         submitButton.disabled = false;
     }
 });
+
+// ============================================================================
+// FONCTIONS POUR LA GESTION DU MENU - NOUVELLES FONCTIONS AJOUTÉES
+// ============================================================================
+
+// Fonction pour ouvrir le modal d'édition d'article
+async function globalOpenEditModal(itemId) {
+    try {
+        console.log('Chargement article pour édition:', itemId);
+        
+        const response = await fetch(`/admin/menu/${itemId}/ajax`);
+        const item = await response.json();
+        
+        if (item.error) {
+            throw new Error(item.error);
+        }
+
+        // Remplir le formulaire avec les données de l'article
+        document.getElementById('globalMenuForm').reset();
+        document.getElementById('globalModalTitle').textContent = 'Modifier l\'article';
+        document.getElementById('globalSubmitText').textContent = 'Modifier l\'article';
+        document.getElementById('globalMethodField').innerHTML = '<input type="hidden" name="_method" value="PUT">';
+        document.getElementById('globalMenuForm').action = `/admin/menu/${itemId}`;
+        
+        document.getElementById('globalItemName').value = item.name || '';
+        document.getElementById('globalItemDescription').value = item.description || '';
+        document.getElementById('globalItemPrice').value = item.price || '';
+        document.getElementById('globalItemCategory').value = item.category || 'repas';
+        document.getElementById('globalItemAvailable').checked = item.available !== false;
+        
+        document.getElementById('globalAddModal').style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Erreur chargement article:', error);
+        showToast('❌ Erreur lors du chargement de l\'article: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour supprimer un article
+async function deleteMenuItem(itemId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ? Cette action est irréversible.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin/menu/${itemId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('✅ ' + result.message, 'success');
+            
+            // Recharger le menu
+            if (window.dashboardComponent) {
+                const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                window.dashboardComponent.loadMenu(savedCategory);
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        console.error('Erreur suppression:', error);
+        showToast('❌ Erreur lors de la suppression: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour ouvrir le modal de promotion avec les données de l'article
+async function openPromotionModalForItem(itemId) {
+    try {
+        console.log('Ouverture promotion pour article:', itemId);
+        
+        const response = await fetch(`/admin/menu/${itemId}/ajax`);
+        const item = await response.json();
+        
+        if (item.error) {
+            throw new Error(item.error);
+        }
+
+        // Remplir le modal de promotion
+        document.getElementById('promotionItemName').textContent = item.name;
+        document.getElementById('promotionCurrentPrice').textContent = item.price + ' FCFA';
+        document.getElementById('promotionOriginalPrice').value = item.price;
+        document.getElementById('promotionItemId').value = item.id;
+        document.getElementById('promotionDiscount').value = '';
+        document.getElementById('promotionNewPrice').textContent = '- FCFA';
+        document.getElementById('promotionModal').style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Erreur chargement article pour promotion:', error);
+        showToast('❌ Erreur lors du chargement de l\'article: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour retirer une promotion
+async function removePromotion(itemId) {
+    if (!confirm('Êtes-vous sûr de vouloir retirer la promotion de cet article ?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin/menu/${itemId}/promotion`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('✅ ' + result.message, 'success');
+            
+            // Recharger le menu
+            if (window.dashboardComponent) {
+                const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                window.dashboardComponent.loadMenu(savedCategory);
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        console.error('Erreur retrait promotion:', error);
+        showToast('❌ Erreur lors du retrait de la promotion: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour basculer la disponibilité
+async function toggleAvailability(itemId) {
+    try {
+        const response = await fetch(`/admin/menu/${itemId}/toggle`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('✅ ' + result.message, 'success');
+            
+            // Recharger le menu
+            if (window.dashboardComponent) {
+                const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                window.dashboardComponent.loadMenu(savedCategory);
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        console.error('Erreur bascule disponibilité:', error);
+        showToast('❌ Erreur lors du changement de disponibilité: ' + error.message, 'error');
+    }
+}
+
+// Fonctions compatibles avec votre composant menu-item-card
+function handleEditItem(item) {
+    globalOpenEditModal(item.id);
+}
+
+function handleDeleteItem(itemId) {
+    deleteMenuItem(itemId);
+}
+
+function handleAddPromotion(itemId) {
+    openPromotionModalForItem(itemId);
+}
+
+function handleRemovePromotion(itemId) {
+    removePromotion(itemId);
+}
+
+function handleToggleAvailability(itemId) {
+    toggleAvailability(itemId);
+}
 
 // Fonctions pour le modal clients - VERSION CORRIGÉE
 function openAddClientModal() {
@@ -1224,8 +1424,8 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Fonction utilitaire pour les toasts
-function showToast(message, type = 'success') {
+// Fonction utilitaire pour les toats
+function showToast(message, type = 'success', duration = 4000) {
     const existingToasts = document.querySelectorAll('.custom-toast');
     existingToasts.forEach(toast => toast.remove());
 
@@ -1237,8 +1437,50 @@ function showToast(message, type = 'success') {
     document.body.appendChild(toast);
 
     setTimeout(() => {
-        toast.remove();
-    }, 4000);
+        if (toast.parentNode) {
+            toast.style.transition = 'opacity 0.5s ease';
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 500);
+        }
+    }, duration);
+}
+
+// Fonction pour mettre à jour le statut de commande via AJAX
+async function updateOrderStatus(orderId, newStatus) {
+    try {
+        const response = await fetch(`/admin/orders/${orderId}/status-ajax`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                status: newStatus
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('✅ ' + result.message, 'success');
+            
+            // Recharger seulement le contenu des commandes
+            if (window.dashboardComponent) {
+                const currentStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
+                window.dashboardComponent.loadOrders(currentStatus);
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showToast('❌ Erreur: ' + error.message, 'error');
+    }
 }
 
 // Composant principal du dashboard - VERSION CORRIGÉE AVEC FONCTIONS RAPPORTS
@@ -1255,12 +1497,25 @@ document.addEventListener('alpine:init', () => {
         init() {
             window.dashboardComponent = this;
             console.log('Dashboard component initialized');
+            
+            // Récupérer l'onglet depuis le localStorage
+            const savedTab = localStorage.getItem('adminActiveTab');
+            if (savedTab && ['overview', 'orders', 'menu', 'clients', 'reports'].includes(savedTab)) {
+                this.activeTab = savedTab;
+                // Charger le contenu de l'onglet sauvegardé
+                this.$nextTick(() => {
+                    this.switchTab(savedTab);
+                });
+            }
         },
         
         async switchTab(tabName) {
             this.activeTab = tabName;
             this.loading = true;
             this.error = false;
+            
+            // Sauvegarder l'onglet dans le localStorage
+            localStorage.setItem('adminActiveTab', tabName);
             
             await this.$nextTick();
             
@@ -1282,10 +1537,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        async loadOrders(status = 'pending') {
+        async loadOrders(status = null) {
             try {
-                console.log('Chargement des commandes, statut:', status);
-                const response = await fetch(`/admin/orders/ajax?status=${status}&_=${Date.now()}`);
+                // Utiliser le statut sauvegardé ou celui fourni
+                const savedStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
+                const ordersStatus = status || savedStatus;
+                
+                console.log('Chargement des commandes, statut:', ordersStatus);
+                const response = await fetch(`/admin/orders/ajax?status=${ordersStatus}&_=${Date.now()}`);
                 
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP: ${response.status}`);
@@ -1295,13 +1554,16 @@ document.addEventListener('alpine:init', () => {
                 this.ordersContent = html;
                 console.log('Commandes chargées avec succès');
                 
+                // Sauvegarder le statut
+                localStorage.setItem('adminOrdersStatus', ordersStatus);
+                
             } catch (error) {
                 console.error('Erreur de chargement des commandes:', error);
                 this.error = true;
                 this.ordersContent = `
                     <div class="text-center py-8 text-red-600">
                         <p>Erreur de chargement des commandes</p>
-                        <button onclick="window.dashboardComponent.loadOrders('${status}')" 
+                        <button onclick="window.dashboardComponent.loadOrders()" 
                                 class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
                             Réessayer
                         </button>
@@ -1310,10 +1572,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        async loadMenu(category = 'repas') {
+        async loadMenu(category = null) {
             try {
-                console.log('Chargement du menu, catégorie:', category);
-                const response = await fetch(`/admin/menu/ajax?category=${category}&_=${Date.now()}`);
+                // Utiliser la catégorie sauvegardée ou celle fournie
+                const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                const menuCategory = category || savedCategory;
+                
+                console.log('Chargement du menu, catégorie:', menuCategory);
+                const response = await fetch(`/admin/menu/ajax?category=${menuCategory}&_=${Date.now()}`);
                 
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP: ${response.status}`);
@@ -1323,13 +1589,16 @@ document.addEventListener('alpine:init', () => {
                 this.menuContent = html;
                 console.log('Menu chargé avec succès');
                 
+                // Sauvegarder la catégorie
+                localStorage.setItem('adminMenuCategory', menuCategory);
+                
             } catch (error) {
                 console.error('Erreur de chargement du menu:', error);
                 this.error = true;
                 this.menuContent = `
                     <div class="text-center py-8 text-red-600">
                         <p>Erreur de chargement du menu</p>
-                        <button onclick="window.dashboardComponent.loadMenu('${category}')" 
+                        <button onclick="window.dashboardComponent.loadMenu()" 
                                 class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
                             Réessayer
                         </button>
@@ -1784,7 +2053,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Ajouter article
         if (e.target.closest('button') && (e.target.closest('button').textContent.includes('Ajouter un Article') || e.target.closest('button').textContent.includes('Ajouter le premier') || e.target.closest('button').textContent.includes('Ajouter la première'))) {
             e.preventDefault();
-            globalOpenAddModal();
+            const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+            globalOpenAddModalWithCategory(savedCategory);
         }
 
         // Boutons de catégorie menu
@@ -1792,6 +2062,10 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             const category = e.target.getAttribute('data-category');
             console.log('Changement de catégorie:', category);
+            
+            // Sauvegarder la catégorie
+            localStorage.setItem('adminMenuCategory', category);
+            
             if (window.dashboardComponent) {
                 window.dashboardComponent.loadMenu(category);
             }
@@ -1802,6 +2076,10 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             const status = e.target.getAttribute('data-status');
             console.log('Changement de statut:', status);
+            
+            // Sauvegarder le statut
+            localStorage.setItem('adminOrdersStatus', status);
+            
             if (window.dashboardComponent) {
                 window.dashboardComponent.loadOrders(status);
             }

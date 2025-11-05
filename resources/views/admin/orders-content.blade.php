@@ -109,14 +109,11 @@
                             ✅ Accepter
                         </button>
                         @elseif(in_array($order->status, ['en_cours', 'prêt']))
-                        <form action="{{ route('admin.orders.status', $order->id) }}" method="POST" class="flex-1">
-                            @csrf
-                            @method('PUT')
-                            <input type="hidden" name="status" value="{{ $order->status === 'en_cours' ? 'prêt' : 'terminé' }}">
-                            <button type="submit" class="w-full bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors">
-                                {{ $order->status === 'en_cours' ? '🟢 Marquer Prêt' : '🏁 Terminer' }}
-                            </button>
-                        </form>
+                        <button type="button"
+                                onclick="updateOrderStatus('{{ $order->id }}', '{{ $order->status === 'en_cours' ? 'prêt' : 'terminé' }}')"
+                                class="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors">
+                            {{ $order->status === 'en_cours' ? '🟢 Marquer Prêt' : '🏁 Terminer' }}
+                        </button>
                         @endif
                     </div>
 
@@ -138,21 +135,119 @@
     @endif
 </div>
 
-<!-- Scripts -->
 <script>
+// Sauvegarder le statut des commandes dans le localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    const currentStatus = '{{ $status }}';
+    localStorage.setItem('adminOrdersStatus', currentStatus);
+});
+
+// Fonction pour mettre à jour le statut via AJAX
+async function updateOrderStatus(orderId, newStatus) {
+    try {
+        const response = await fetch(`/admin/orders/${orderId}/status-ajax`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                status: newStatus
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('✅ ' + result.message, 'success');
+            
+            // Recharger seulement le contenu des commandes avec le même statut
+            if (window.dashboardComponent) {
+                const currentStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
+                window.dashboardComponent.loadOrders(currentStatus);
+            }
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showToast('❌ Erreur: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour ajouter du temps via prompt
+function openAddTimePrompt(orderId, currentTime, button) {
+    const minutesStr = prompt("Combien de minutes supplémentaires voulez-vous ajouter ?", "10");
+    if (minutesStr === null) return;
+    const minutes = parseInt(minutesStr, 10);
+    if (isNaN(minutes) || minutes <= 0) {
+        alert("Veuillez entrer un nombre valide.");
+        return;
+    }
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    button.disabled = true;
+    button.textContent = "Ajout en cours...";
+
+    fetch(`/admin/orders/${orderId}/add-time`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token
+        },
+        body: JSON.stringify({ additional_time: minutes })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('⏱️ ' + data.message, 'success');
+            // Recharger les commandes
+            if (window.dashboardComponent) {
+                const currentStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
+                window.dashboardComponent.loadOrders(currentStatus);
+            }
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Erreur:', err);
+        showToast('❌ Erreur réseau ou serveur', 'error');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.textContent = "⏱️ Ajouter du temps";
+    });
+}
+
+// Délégation d'événements
 document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
-        // 🔹 Changement d’onglet
+        // 🔹 Changement d'onglet
         if (e.target.hasAttribute('data-status')) {
             e.preventDefault();
             const status = e.target.getAttribute('data-status');
-            if (window.dashboardComponent) window.dashboardComponent.loadOrders(status);
+            
+            // Sauvegarder le statut
+            localStorage.setItem('adminOrdersStatus', status);
+            
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadOrders(status);
+            }
         }
 
         // 🔹 Voir Détails
         if (e.target.classList.contains('view-order-details-btn')) {
             e.preventDefault();
             openOrderDetailsModal(e.target.getAttribute('data-order-id'));
+        }
+
+        // 🔹 Accepter Commande
+        if (e.target.classList.contains('accept-order-btn')) {
+            e.preventDefault();
+            const orderId = e.target.getAttribute('data-order-id');
+            openTimeModal(orderId);
         }
 
         // 🔹 Ajouter du Temps
@@ -163,39 +258,5 @@ document.addEventListener('DOMContentLoaded', function() {
             openAddTimePrompt(orderId, currentTime, e.target);
         }
     });
-
-    // Fonction d’ajout de temps
-    function openAddTimePrompt(orderId, currentTime, button) {
-        const minutesStr = prompt("Combien de minutes supplémentaires voulez-vous ajouter ?", "10");
-        if (minutesStr === null) return;
-        const minutes = parseInt(minutesStr, 10);
-        if (isNaN(minutes) || minutes <= 0) {
-            alert("Veuillez entrer un nombre valide.");
-            return;
-        }
-
-        const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        button.disabled = true;
-        button.textContent = "Ajout en cours...";
-
-        fetch(`/admin/orders/${orderId}/add-time`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-TOKEN": token
-            },
-            body: JSON.stringify({ additional_time: minutes })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) alert("Temps ajouté avec succès !");
-            else alert(data.message || "Erreur lors de l'ajout du temps.");
-        })
-        .catch(err => alert("Erreur réseau ou serveur."))
-        .finally(() => {
-            button.disabled = false;
-            button.textContent = "⏱️ Ajouter du temps";
-        });
-    }
 });
 </script>
