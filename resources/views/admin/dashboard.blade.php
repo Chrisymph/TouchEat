@@ -515,6 +515,11 @@
                         class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
                     Fermer
                 </button>
+                <!-- Bouton Imprimer Reçu ajouté -->
+                <button type="button" id="modalPrintReceiptBtn"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors print-receipt-btn">
+                    🖨️ Imprimer Reçu
+                </button>
             </div>
         </div>
     </div>
@@ -592,6 +597,71 @@
 <script>
 // Rendre le composant accessible globalement
 window.dashboardComponent = null;
+
+// ============================================================================
+// FONCTIONS POUR L'IMPRESSION DES REÇUS
+// ============================================================================
+
+// Fonction pour imprimer le reçu
+async function printReceipt(orderId) {
+    try {
+        console.log('🖨️ Impression du reçu pour la commande:', orderId);
+        
+        // Vérifier d'abord si la commande peut être imprimée
+        const checkResponse = await fetch(`/admin/orders/${orderId}/receipt`);
+        const checkResult = await checkResponse.json();
+        
+        if (!checkResult.success) {
+            throw new Error(checkResult.message);
+        }
+        
+        // Ouvrir dans une nouvelle fenêtre pour impression
+        const printUrl = `/admin/orders/${orderId}/print?auto_print=1&t=${Date.now()}`;
+        const printWindow = window.open(printUrl, `receipt_${orderId}`, 'width=400,height=600,scrollbars=no,toolbar=no');
+        
+        if (!printWindow) {
+            throw new Error('Veuillez autoriser les pop-ups pour l\'impression du reçu');
+        }
+        
+        showToast('🖨️ Ouverture de l\'impression...', 'success');
+        
+        // Vérifier si la fenêtre s'est ouverte correctement
+        let checkCount = 0;
+        const checkInterval = setInterval(() => {
+            if (printWindow.closed) {
+                clearInterval(checkInterval);
+                return;
+            }
+            
+            if (checkCount > 10) { // Timeout après 5 secondes
+                clearInterval(checkInterval);
+                showToast('✅ Reçu prêt pour impression', 'success');
+            }
+            
+            checkCount++;
+        }, 500);
+        
+    } catch (error) {
+        console.error('❌ Erreur impression reçu:', error);
+        showToast('❌ Erreur lors de l\'impression: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour prévisualiser le reçu
+async function previewReceipt(orderId) {
+    try {
+        const printUrl = `/admin/orders/${orderId}/print?t=${Date.now()}`;
+        const previewWindow = window.open(printUrl, `preview_${orderId}`, 'width=500,height=700,scrollbars=yes,toolbar=yes');
+        
+        if (!previewWindow) {
+            throw new Error('Veuillez autoriser les pop-ups pour la prévisualisation');
+        }
+        
+    } catch (error) {
+        console.error('Erreur prévisualisation reçu:', error);
+        showToast('❌ Erreur lors de la prévisualisation: ' + error.message, 'error');
+    }
+}
 
 // Fonctions pour le modal de temps
 function openTimeModal(orderId) {
@@ -744,6 +814,12 @@ function openOrderDetailsModal(orderId) {
             <p class="text-gray-600 mt-2">Chargement des détails...</p>
         </div>
     `;
+    
+    // Configurer le bouton d'impression dans le modal
+    const printBtn = document.getElementById('modalPrintReceiptBtn');
+    if (printBtn) {
+        printBtn.setAttribute('data-order-id', orderId);
+    }
     
     const apiUrl = `/admin/orders/${orderId}/ajax`;
     
@@ -1424,6 +1500,23 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+// Délégation d'événements globale pour les boutons d'impression
+document.addEventListener('click', function(e) {
+    // Bouton Imprimer Reçu dans les cartes de commande
+    if (e.target.classList.contains('print-receipt-btn')) {
+        e.preventDefault();
+        const orderId = e.target.getAttribute('data-order-id');
+        printReceipt(orderId);
+    }
+    
+    // Bouton Prévisualiser Reçu (optionnel)
+    if (e.target.classList.contains('preview-receipt-btn')) {
+        e.preventDefault();
+        const orderId = e.target.getAttribute('data-order-id');
+        previewReceipt(orderId);
+    }
+});
+
 // Fonction utilitaire pour les toats
 function showToast(message, type = 'success', duration = 4000) {
     const existingToasts = document.querySelectorAll('.custom-toast');
@@ -2044,6 +2137,13 @@ document.addEventListener('DOMContentLoaded', function() {
             openAddTimeModal(orderId, parseInt(currentTime));
         }
 
+        // AJOUT : Boutons "Imprimer Reçu"
+        if (e.target.classList.contains('print-receipt-btn')) {
+            e.preventDefault();
+            const orderId = e.target.getAttribute('data-order-id');
+            printReceipt(orderId);
+        }
+
         // Ajouter client
         if (e.target.closest('button') && e.target.closest('button').textContent.includes('Ajouter Client')) {
             e.preventDefault();
@@ -2132,6 +2232,40 @@ document.addEventListener('DOMContentLoaded', function() {
         transform: translateX(0);
         opacity: 1;
     }
+}
+
+/* Styles pour le bouton d'impression */
+.print-receipt-btn {
+    background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+    transition: all 0.3s ease;
+}
+
+.print-receipt-btn:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+/* Animation de chargement pour l'impression */
+.print-loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.print-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
 }
 </style>
 @endsection

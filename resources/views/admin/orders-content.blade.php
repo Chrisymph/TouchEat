@@ -128,6 +128,17 @@
                         </button>
                     </div>
                     @endif
+
+                    <!-- BOUTON IMPRIMER REÇU POUR COMMANDES TERMINÉES -->
+                    @if($status === 'completed')
+                    <div class="mt-3 pt-3 border-t border-gray-200">
+                        <button type="button"
+                                class="w-full bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors print-receipt-btn"
+                                data-order-id="{{ $order->id }}">
+                            🖨️ Imprimer Reçu
+                        </button>
+                    </div>
+                    @endif
                 </div>
             </div>
             @endforeach
@@ -173,6 +184,26 @@ async function updateOrderStatus(orderId, newStatus) {
     } catch (error) {
         console.error('Erreur:', error);
         showToast('❌ Erreur: ' + error.message, 'error');
+    }
+}
+
+// Fonction pour imprimer le reçu
+async function printReceipt(orderId) {
+    try {
+        console.log('🖨️ Impression du reçu pour la commande:', orderId);
+        
+        // Ouvrir dans une nouvelle fenêtre pour impression
+        const printWindow = window.open(`/admin/orders/${orderId}/print?auto_print=1`, '_blank', 'width=400,height=600');
+        
+        if (!printWindow) {
+            throw new Error('Veuillez autoriser les pop-ups pour l\'impression');
+        }
+        
+        showToast('🖨️ Ouverture de l\'impression...', 'success');
+        
+    } catch (error) {
+        console.error('Erreur impression reçu:', error);
+        showToast('❌ Erreur lors de l\'impression: ' + error.message, 'error');
     }
 }
 
@@ -256,6 +287,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const orderId = e.target.getAttribute('data-order-id');
             const currentTime = e.target.getAttribute('data-current-time');
             openAddTimePrompt(orderId, currentTime, e.target);
+        }
+
+        // 🔹 IMPRIMER REÇU
+        if (e.target.classList.contains('print-receipt-btn')) {
+            e.preventDefault();
+            const orderId = e.target.getAttribute('data-order-id');
+            printReceipt(orderId);
         }
     });
 });

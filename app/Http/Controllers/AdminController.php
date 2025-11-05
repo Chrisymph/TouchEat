@@ -185,6 +185,62 @@ class AdminController extends Controller
     }
 
     /**
+     * Générer un reçu pour une commande terminée
+     */
+    public function generateReceipt($id)
+    {
+        try {
+            $order = Order::with(['items.menuItem'])->findOrFail($id);
+            
+            // Vérifier que la commande est terminée
+            if (!in_array($order->status, ['terminé', 'livré'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seules les commandes terminées peuvent être imprimées'
+                ], 400);
+            }
+
+            // Récupérer l'admin connecté pour les informations du restaurant
+            $admin = Auth::user();
+            
+            $receiptData = [
+                'order' => $order,
+                'admin' => $admin,
+                'print_date' => now()->format('d/m/Y H:i'),
+            ];
+
+            // Retourner les données pour l'impression
+            return response()->json([
+                'success' => true,
+                'receipt' => $receiptData
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur génération reçu:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du reçu: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Afficher le reçu en format imprimable
+     */
+    public function printReceipt($id)
+    {
+        try {
+            $order = Order::with(['items.menuItem'])->findOrFail($id);
+            $admin = Auth::user();
+            
+            return view('admin.receipt', compact('order', 'admin'));
+            
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Erreur lors de l\'impression du reçu');
+        }
+    }
+
+    /**
      * Gestion du menu (version AJAX pour le dashboard)
      */
     public function menuAjax(Request $request)
