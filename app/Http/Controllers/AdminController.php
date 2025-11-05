@@ -652,6 +652,138 @@ class AdminController extends Controller
     }
 
     /**
+     * Générer un rapport détaillé pour une date spécifique
+     */
+    public function generateDateReport(Request $request)
+    {
+        try {
+            $request->validate([
+                'report_date' => 'required|date'
+            ]);
+
+            $reportDate = $request->report_date;
+            $admin = Auth::user();
+            
+            // Récupérer seulement les tables des clients liés
+            $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+
+            // Commandes de la date spécifique
+            $orders = Order::whereIn('table_number', $linkedClientTables)
+                ->whereDate('created_at', $reportDate)
+                ->with('items.menuItem')
+                ->get();
+
+            // Calcul des statistiques
+            $totalRevenue = $orders->whereIn('status', ['terminé', 'livré'])->sum('total');
+            $totalOrders = $orders->count();
+            
+            // Analyse des revenus
+            $revenueAnalysis = [
+                'sur_place' => $orders->where('order_type', 'sur_place')->whereIn('status', ['terminé', 'livré'])->sum('total'),
+                'livraison' => $orders->where('order_type', 'livraison')->whereIn('status', ['terminé', 'livré'])->sum('total'),
+                'total' => $totalRevenue
+            ];
+
+            // Performance du menu
+            $menuPerformance = $this->getMenuPerformanceForDate($orders, $reportDate);
+            $topItems = $this->getTopItems($menuPerformance);
+
+            // Statut des commandes
+            $orderStatus = [
+                'commandé' => $orders->where('status', 'commandé')->count(),
+                'en_cours' => $orders->where('status', 'en_cours')->count(),
+                'prêt' => $orders->where('status', 'prêt')->count(),
+                'terminé' => $orders->where('status', 'terminé')->count(),
+                'livré' => $orders->where('status', 'livré')->count(),
+            ];
+
+            // Commandes par heure
+            $ordersByHour = $this->getOrdersByHour($orders, $reportDate);
+
+            return response()->json([
+                'success' => true,
+                'report' => [
+                    'date' => $reportDate,
+                    'formatted_date' => Carbon::parse($reportDate)->format('d/m/Y'),
+                    'total_revenue' => $totalRevenue,
+                    'total_orders' => $totalOrders,
+                    'revenue_analysis' => $revenueAnalysis,
+                    'menu_performance' => $menuPerformance,
+                    'top_items' => $topItems,
+                    'order_status' => $orderStatus,
+                    'orders_by_hour' => $ordersByHour,
+                    'orders_count' => $orders->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur génération rapport:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Performance du menu pour une date spécifique
+     */
+    private function getMenuPerformanceForDate($orders, $date)
+    {
+        $performance = [];
+
+        foreach ($orders as $order) {
+            foreach ($order->items as $item) {
+                $menuItemName = $item->menuItem->name ?? $item->name ?? 'Article inconnu';
+                $category = $item->menuItem->category ?? $item->category ?? 'repas';
+                
+                if (!isset($performance[$menuItemName])) {
+                    $performance[$menuItemName] = [
+                        'name' => $menuItemName,
+                        'category' => $category,
+                        'totalQuantity' => 0,
+                        'totalRevenue' => 0,
+                        'orders' => 0
+                    ];
+                }
+
+                $performance[$menuItemName]['totalQuantity'] += $item->quantity;
+                $performance[$menuItemName]['totalRevenue'] += $item->unit_price * $item->quantity;
+                $performance[$menuItemName]['orders'] += 1;
+            }
+        }
+
+        return $performance;
+    }
+
+    /**
+     * Commandes par heure
+     */
+    private function getOrdersByHour($orders, $date)
+    {
+        $hours = [];
+        
+        for ($i = 0; $i < 24; $i++) {
+            $hour = str_pad($i, 2, '0', STR_PAD_LEFT);
+            $hours[$hour] = [
+                'hour' => $hour . ':00',
+                'count' => 0,
+                'revenue' => 0
+            ];
+        }
+
+        foreach ($orders as $order) {
+            $hour = $order->created_at->format('H');
+            $hours[$hour]['count']++;
+            if (in_array($order->status, ['terminé', 'livré'])) {
+                $hours[$hour]['revenue'] += $order->total;
+            }
+        }
+
+        return array_values($hours);
+    }
+
+    /**
      * Sauvegarder un rapport (CORRIGÉ)
      */
     public function saveReport(Request $request)
@@ -824,62 +956,58 @@ class AdminController extends Controller
     /**
      * Ajouter du temps à une commande existante avec ajout d'articles
      */
-/**
- * Ajouter du temps à une commande existante avec ajout d'articles (sécurisé)
- */
-public function addTimeToOrder(\Illuminate\Http\Request $request, $id)
-{
-    $request->validate([
-        'additional_time' => 'required|integer|min:1|max:240'
-    ]);
-
-    try {
-        $order = Order::with('items')->findOrFail($id);
-
-        // La commande doit être en cours (ou commandé)
-        if (!in_array($order->status, ['commandé', 'en_cours'])) {
-            return response()->json([
-                'success' => false,
-                'message' => "Impossible d'ajouter du temps : la commande n'est pas active."
-            ], 400);
-        }
-
-        // Vérifier qu'il y a eu au moins une commande précédente du client/table
-        if (!$order->hasPreviousOrders()) {
-            return response()->json([
-                'success' => false,
-                'message' => "Impossible d'ajouter du temps : le client n'a pas de commande précédente terminée."
-            ], 400);
-        }
-
-        // Vérifier qu'il y a eu de réels ajouts d'articles pendant la commande en cours
-        // (seuil 30s, identique à celui du modèle)
-        if (!$order->hasRecentAdditions(30)) {
-            return response()->json([
-                'success' => false,
-                'message' => "Ajout de temps réservé aux commandes où des articles ont été ajoutés pendant la commande."
-            ], 400);
-        }
-
-        // Ajouter le temps
-        $additional = (int)$request->input('additional_time', 0);
-        $order->estimated_time = ($order->estimated_time ?? 0) + $additional;
-        $order->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Temps supplémentaire ajouté avec succès.',
-            'new_estimated_time' => $order->estimated_time
+    public function addTimeToOrder(Request $request, $id)
+    {
+        $request->validate([
+            'additional_time' => 'required|integer|min:1|max:240'
         ]);
-    } catch (\Exception $e) {
-        \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur serveur : ' . $e->getMessage()
-        ], 500);
-    }
-}
 
+        try {
+            $order = Order::with('items')->findOrFail($id);
+
+            // La commande doit être en cours (ou commandé)
+            if (!in_array($order->status, ['commandé', 'en_cours'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Impossible d'ajouter du temps : la commande n'est pas active."
+                ], 400);
+            }
+
+            // Vérifier qu'il y a eu au moins une commande précédente du client/table
+            if (!$order->hasPreviousOrders()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Impossible d'ajouter du temps : le client n'a pas de commande précédente terminée."
+                ], 400);
+            }
+
+            // Vérifier qu'il y a eu de réels ajouts d'articles pendant la commande en cours
+            // (seuil 30s, identique à celui du modèle)
+            if (!$order->hasRecentAdditions(30)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Ajout de temps réservé aux commandes où des articles ont été ajoutés pendant la commande."
+                ], 400);
+            }
+
+            // Ajouter le temps
+            $additional = (int)$request->input('additional_time', 0);
+            $order->estimated_time = ($order->estimated_time ?? 0) + $additional;
+            $order->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Temps supplémentaire ajouté avec succès.',
+                'new_estimated_time' => $order->estimated_time
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur serveur : ' . $e->getMessage()
+            ], 500);
+        }
+    }
 
     /**
      * Vérifier si une commande a des ajouts d'articles (CORRIGÉ)

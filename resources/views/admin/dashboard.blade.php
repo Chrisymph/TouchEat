@@ -559,6 +559,36 @@
     </div>
 </div>
 
+<!-- Modal pour le rapport par date -->
+<div id="dateReportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-semibold" id="modalReportTitle">Rapport détaillé</h3>
+                <button type="button" onclick="closeDateReportModal()" 
+                        class="text-gray-400 hover:text-gray-600 text-2xl">
+                    &times;
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            <div id="dateReportContent">
+                <!-- Le contenu du rapport sera chargé ici -->
+            </div>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 bg-gray-50">
+            <div class="flex justify-end">
+                <button type="button" onclick="closeDateReportModal()" 
+                        class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-all duration-300">
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Rendre le composant accessible globalement
 window.dashboardComponent = null;
@@ -718,7 +748,7 @@ function openOrderDetailsModal(orderId) {
     fetch(apiUrl)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Erreur HTTP: ' + response.status);
+                throw new Error('Erreur HTTP: ' . response.status);
             }
             return response.json();
         })
@@ -1158,6 +1188,11 @@ async function unlinkClient(clientId) {
     }
 }
 
+// Fonctions pour le modal de rapport par date
+function closeDateReportModal() {
+    document.getElementById('dateReportModal').classList.add('hidden');
+}
+
 // Gestion des événements
 document.addEventListener('change', function(e) {
     if (e.target.classList.contains('client-checkbox')) {
@@ -1173,6 +1208,7 @@ document.addEventListener('click', function(e) {
     if (e.target.id === 'promotionModal') closePromotionModal();
     if (e.target.id === 'orderDetailsModal') closeOrderDetailsModal();
     if (e.target.id === 'addClientModal') closeAddClientModal();
+    if (e.target.id === 'dateReportModal') closeDateReportModal();
 });
 
 // Fermer avec Échap
@@ -1184,6 +1220,7 @@ document.addEventListener('keydown', function(e) {
         closePromotionModal();
         closeOrderDetailsModal();
         closeAddClientModal();
+        closeDateReportModal();
     }
 });
 
@@ -1204,7 +1241,7 @@ function showToast(message, type = 'success') {
     }, 4000);
 }
 
-// Composant principal du dashboard - VERSION CORRIGÉE
+// Composant principal du dashboard - VERSION CORRIGÉE AVEC FONCTIONS RAPPORTS
 document.addEventListener('alpine:init', () => {
     Alpine.data('dashboardComponent', () => ({
         activeTab: 'overview',
@@ -1347,6 +1384,11 @@ document.addEventListener('alpine:init', () => {
                 this.reportsContent = html;
                 console.log('Rapports chargés avec succès');
                 
+                // Initialiser les graphiques après le chargement
+                this.$nextTick(() => {
+                    this.initReportsChart();
+                });
+                
             } catch (error) {
                 console.error('Erreur de chargement des rapports:', error);
                 this.error = true;
@@ -1359,6 +1401,329 @@ document.addEventListener('alpine:init', () => {
                         </button>
                     </div>
                 `;
+            }
+        },
+
+        // FONCTIONS POUR LES RAPPORTS
+        async generateDateReport() {
+            const reportDate = document.getElementById('reportDate')?.value;
+            const button = document.getElementById('generateReportBtn');
+            const buttonText = document.getElementById('reportBtnText');
+            const buttonLoading = document.getElementById('reportBtnLoading');
+
+            if (!reportDate) {
+                alert('Veuillez sélectionner une date');
+                return;
+            }
+
+            // Afficher l'indicateur de chargement
+            if (button) {
+                button.disabled = true;
+                if (buttonText) buttonText.classList.add('hidden');
+                if (buttonLoading) buttonLoading.classList.remove('hidden');
+            }
+
+            try {
+                console.log('📊 Génération du rapport pour:', reportDate);
+                
+                const response = await fetch('/admin/reports/generate-date-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        report_date: reportDate
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('✅ Rapport généré avec succès:', result.report);
+                    this.showDateReportModal(result.report);
+                } else {
+                    throw new Error(result.message || 'Erreur lors de la génération du rapport');
+                }
+
+            } catch (error) {
+                console.error('❌ Erreur génération rapport:', error);
+                alert('Erreur: ' + error.message);
+            } finally {
+                // Restaurer le bouton
+                if (button) {
+                    button.disabled = false;
+                    if (buttonText) buttonText.classList.remove('hidden');
+                    if (buttonLoading) buttonLoading.classList.add('hidden');
+                }
+            }
+        },
+
+        showDateReportModal(report) {
+            const modal = document.getElementById('dateReportModal');
+            const title = document.getElementById('modalReportTitle');
+            const content = document.getElementById('dateReportContent');
+            
+            // Mettre à jour le titre
+            if (title) title.textContent = `Rapport du ${report.formatted_date}`;
+            
+            // Générer le contenu du rapport
+            if (content) content.innerHTML = this.generateReportHTML(report);
+            
+            // Afficher le modal
+            if (modal) modal.classList.remove('hidden');
+        },
+
+        generateReportHTML(report) {
+            return `
+                <div class="space-y-6">
+                    <!-- Métriques principales -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-blue-50 rounded-lg p-4 text-center">
+                            <div class="text-2xl font-bold text-blue-600">${report.total_orders}</div>
+                            <div class="text-sm text-blue-800">Commandes totales</div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-4 text-center">
+                            <div class="text-2xl font-bold text-green-600">${report.total_revenue ? report.total_revenue.toLocaleString('fr-FR') : 0} FCFA</div>
+                            <div class="text-sm text-green-800">Chiffre d'affaires</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-4 text-center">
+                            <div class="text-2xl font-bold text-purple-600">${report.total_orders > 0 && report.total_revenue ? Math.round(report.total_revenue / report.total_orders).toLocaleString('fr-FR') : 0} FCFA</div>
+                            <div class="text-sm text-purple-800">Panier moyen</div>
+                        </div>
+                    </div>
+
+                    <!-- Analyse des revenus -->
+                    <div class="bg-white rounded-lg border p-6">
+                        <h4 class="text-lg font-semibold mb-4">📈 Analyse des Revenus</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span>Sur place:</span>
+                                    <span class="font-semibold">${report.revenue_analysis.sur_place ? report.revenue_analysis.sur_place.toLocaleString('fr-FR') : 0} FCFA</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Livraison:</span>
+                                    <span class="font-semibold">${report.revenue_analysis.livraison ? report.revenue_analysis.livraison.toLocaleString('fr-FR') : 0} FCFA</span>
+                                </div>
+                                <div class="flex justify-between border-t pt-2 font-bold">
+                                    <span>Total:</span>
+                                    <span class="text-blue-600">${report.revenue_analysis.total ? report.revenue_analysis.total.toLocaleString('fr-FR') : 0} FCFA</span>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <div class="text-sm text-gray-600 mb-2">Répartition</div>
+                                <div class="space-y-1">
+                                    <div class="flex justify-between text-sm">
+                                        <span>Sur place:</span>
+                                        <span>${report.revenue_analysis.total > 0 ? Math.round((report.revenue_analysis.sur_place / report.revenue_analysis.total) * 100) : 0}%</span>
+                                    </div>
+                                    <div class="flex justify-between text-sm">
+                                        <span>Livraison:</span>
+                                        <span>${report.revenue_analysis.total > 0 ? Math.round((report.revenue_analysis.livraison / report.revenue_analysis.total) * 100) : 0}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance du menu -->
+                    <div class="bg-white rounded-lg border p-6">
+                        <h4 class="text-lg font-semibold mb-4">🍽️ Performance du Menu</h4>
+                        <div class="space-y-3">
+                            ${Object.values(report.menu_performance).length > 0 ? 
+                                Object.values(report.menu_performance)
+                                    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+                                    .slice(0, 10)
+                                    .map(item => `
+                                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                            <div class="flex items-center gap-3">
+                                                <span class="px-2 py-1 text-xs rounded ${
+                                                    item.category === 'repas' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                                                }">
+                                                    ${item.category}
+                                                </span>
+                                                <span class="font-medium">${item.name}</span>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="font-semibold">${item.totalRevenue.toLocaleString('fr-FR')} FCFA</div>
+                                                <div class="text-sm text-gray-600">
+                                                    ${item.totalQuantity} vendus • ${item.orders} commandes
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') 
+                                : 
+                                '<div class="text-center py-4 text-gray-500">Aucune donnée de vente pour cette date</div>'
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Statut des commandes -->
+                    <div class="bg-white rounded-lg border p-6">
+                        <h4 class="text-lg font-semibold mb-4">📊 Statut des Commandes</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            ${Object.entries(report.order_status).map(([status, count]) => `
+                                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                                    <div class="text-xl font-bold ${
+                                        status === 'terminé' || status === 'livré' ? 'text-green-600' : 
+                                        status === 'prêt' ? 'text-blue-600' : 'text-orange-600'
+                                    }">${count}</div>
+                                    <div class="text-sm text-gray-600 capitalize">${status.replace('_', ' ')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Commandes par heure -->
+                    <div class="bg-white rounded-lg border p-6">
+                        <h4 class="text-lg font-semibold mb-4">⏰ Commandes par Heure</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+                            ${report.orders_by_hour.filter(hour => hour.count > 0).map(hour => `
+                                <div class="text-center p-2 bg-blue-50 rounded">
+                                    <div class="font-semibold">${hour.hour}</div>
+                                    <div class="text-sm text-blue-600">${hour.count} cmd</div>
+                                    <div class="text-xs text-gray-600">${hour.revenue.toLocaleString('fr-FR')} FCFA</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ${report.orders_by_hour.filter(hour => hour.count > 0).length === 0 ? 
+                            '<div class="text-center py-4 text-gray-500">Aucune commande enregistrée pour cette date</div>' : 
+                            ''
+                        }
+                    </div>
+                </div>
+            `;
+        },
+
+        closeDateReportModal() {
+            const modal = document.getElementById('dateReportModal');
+            if (modal) modal.classList.add('hidden');
+        },
+
+        initReportsChart() {
+            console.log('🎨 Tentative de rendu du graphique...');
+            const ctx = document.getElementById('reportsChart');
+            
+            if (!ctx) {
+                console.error('❌ Canvas pour le graphique non trouvé');
+                return;
+            }
+            
+            // Les données du graphique seront chargées dynamiquement
+            // Cette fonction sera appelée après le chargement du contenu des rapports
+            setTimeout(() => {
+                this.renderChart();
+            }, 100);
+        },
+
+        renderChart() {
+            const ctx = document.getElementById('reportsChart');
+            if (!ctx) return;
+
+            // Récupérer les données du graphique depuis les attributs data
+            const chartDataElement = document.querySelector('[data-chart-data]');
+            if (!chartDataElement) return;
+
+            try {
+                const chartData = JSON.parse(chartDataElement.getAttribute('data-chart-data'));
+                console.log('📊 Données pour le graphique:', chartData);
+
+                if (chartData.length === 0) {
+                    console.log('Aucune donnée pour le graphique');
+                    return;
+                }
+
+                if (typeof Chart === 'undefined') {
+                    console.error('❌ Chart.js non disponible');
+                    return;
+                }
+
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.map(item => item.name),
+                        datasets: [{
+                            label: 'Revenus (FCFA)',
+                            data: chartData.map(item => item.totalRevenue),
+                            backgroundColor: chartData.map(item => 
+                                item.category === 'repas' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(147, 51, 234, 0.8)'
+                            ),
+                            borderColor: chartData.map(item =>
+                                item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
+                            ),
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('fr-FR') + ' FCFA';
+                                    },
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleFont: {
+                                    size: 12
+                                },
+                                bodyFont: {
+                                    size: 11
+                                },
+                                callbacks: {
+                                    label: function(context) {
+                                        const item = chartData[context.dataIndex];
+                                        return [
+                                            `Revenus: ${item.totalRevenue.toLocaleString('fr-FR')} FCFA`,
+                                            `Quantité: ${item.totalQuantity} vendus`,
+                                            `Commandes: ${item.orders}`
+                                        ];
+                                    }
+                                }
+                            },
+                            legend: {
+                                display: false
+                            }
+                        },
+                        animation: {
+                            duration: 1000,
+                            easing: 'easeInOutQuart'
+                        }
+                    }
+                });
+                
+                console.log('✅ Graphique créé avec succès!');
+                
+            } catch (error) {
+                console.error('❌ Erreur lors de la création du graphique:', error);
             }
         }
     }));

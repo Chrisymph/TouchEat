@@ -64,6 +64,9 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/reports/chart-data', [AdminController::class, 'reportsChartData'])->name('admin.reports.chart');
     Route::post('/reports/save', [AdminController::class, 'saveReport'])->name('admin.reports.save');
     
+    // NOUVELLE ROUTE POUR LE RAPPORT PAR DATE
+    Route::post('/reports/generate-date-report', [AdminController::class, 'generateDateReport'])->name('admin.reports.generate-date');
+    
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
 
