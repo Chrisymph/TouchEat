@@ -781,6 +781,92 @@ class AdminController extends Controller
         }
     }
 
+/**
+ * Télécharger le rapport PDF pour une date spécifique
+ */
+public function downloadDateReport(Request $request)
+{
+    try {
+        $request->validate([
+            'report_date' => 'required|date'
+        ]);
+
+        $reportDate = $request->report_date;
+        $admin = Auth::user();
+        
+        // Récupérer seulement les tables des clients liés
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+
+        // Commandes de la date spécifique
+        $orders = Order::whereIn('table_number', $linkedClientTables)
+            ->whereDate('created_at', $reportDate)
+            ->with('items.menuItem')
+            ->get();
+
+        // Calcul des statistiques
+        $totalRevenue = $orders->whereIn('status', ['terminé', 'livré'])->sum('total');
+        $totalOrders = $orders->count();
+        
+        // Analyse des revenus
+        $revenueAnalysis = [
+            'sur_place' => $orders->where('order_type', 'sur_place')->whereIn('status', ['terminé', 'livré'])->sum('total'),
+            'livraison' => $orders->where('order_type', 'livraison')->whereIn('status', ['terminé', 'livré'])->sum('total'),
+            'total' => $totalRevenue
+        ];
+
+        // Performance du menu
+        $menuPerformance = $this->getMenuPerformanceForDate($orders, $reportDate);
+        $topItems = $this->getTopItems($menuPerformance);
+
+        // Statut des commandes
+        $orderStatus = [
+            'commandé' => $orders->where('status', 'commandé')->count(),
+            'en_cours' => $orders->where('status', 'en_cours')->count(),
+            'prêt' => $orders->where('status', 'prêt')->count(),
+            'terminé' => $orders->where('status', 'terminé')->count(),
+            'livré' => $orders->where('status', 'livré')->count(),
+        ];
+
+        // Commandes par heure
+        $ordersByHour = $this->getOrdersByHour($orders, $reportDate);
+
+        $reportData = [
+            'date' => $reportDate,
+            'formatted_date' => \Carbon\Carbon::parse($reportDate)->format('d/m/Y'),
+            'total_revenue' => $totalRevenue,
+            'total_orders' => $totalOrders,
+            'revenue_analysis' => $revenueAnalysis,
+            'menu_performance' => $menuPerformance,
+            'top_items' => $topItems,
+            'order_status' => $orderStatus,
+            'orders_by_hour' => $ordersByHour,
+            'orders_count' => $orders->count(),
+            'admin' => $admin,
+            'generated_at' => now()->format('d/m/Y H:i')
+        ];
+
+        // Utiliser DomPDF directement
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml(view('admin.reports.pdf', $reportData)->render());
+        
+        // (Optionnel) Définir la taille du papier et l'orientation
+        $dompdf->setPaper('A4', 'portrait');
+        
+        // Rendre le PDF
+        $dompdf->render();
+        
+        $filename = "rapport_{$reportDate}.pdf";
+        
+        // Télécharger le PDF
+        return $dompdf->stream($filename);
+
+    } catch (\Exception $e) {
+        \Log::error('Erreur téléchargement rapport:', ['error' => $e->getMessage()]);
+        
+        return back()->with('error', 'Erreur lors du téléchargement du rapport: ' . $e->getMessage());
+    }
+}
+
     /**
      * Performance du menu pour une date spécifique
      */

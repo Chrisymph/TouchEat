@@ -70,6 +70,7 @@ Route::get('/orders/{id}/print', [AdminController::class, 'printReceipt'])->name
     
     // NOUVELLE ROUTE POUR LE RAPPORT PAR DATE
     Route::post('/reports/generate-date-report', [AdminController::class, 'generateDateReport'])->name('admin.reports.generate-date');
+    Route::post('/reports/download-date-report', [AdminController::class, 'downloadDateReport'])->name('admin.reports.download-date');
     
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });

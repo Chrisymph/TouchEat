@@ -564,7 +564,7 @@
     </div>
 </div>
 
-<!-- Modal pour le rapport par date -->
+<!-- Modal pour le rapport par date AVEC BOUTON TÉLÉCHARGER -->
 <div id="dateReportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden">
         <div class="p-6 border-b border-gray-200">
@@ -584,9 +584,14 @@
         </div>
         
         <div class="p-6 border-t border-gray-200 bg-gray-50">
-            <div class="flex justify-end">
+            <div class="flex justify-between items-center">
+                <button type="button" onclick="downloadDateReport()" 
+                        id="downloadReportBtn"
+                        class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all duration-300 flex items-center gap-2">
+                    <span>📥 Télécharger Rapport PDF</span>
+                </button>
                 <button type="button" onclick="closeDateReportModal()" 
-                        class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-all duration-300">
+                        class="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-all duration-300">
                     Fermer
                 </button>
             </div>
@@ -1464,6 +1469,64 @@ async function unlinkClient(clientId) {
     }
 }
 
+// ============================================================================
+// FONCTIONS POUR LE TÉLÉCHARGEMENT DES RAPPORTS
+// ============================================================================
+
+// Fonction pour télécharger le rapport PDF
+async function downloadDateReport() {
+    const reportDate = document.getElementById('reportDate')?.value;
+    const button = document.getElementById('downloadReportBtn');
+    const originalText = button.innerHTML;
+
+    if (!reportDate) {
+        alert('Veuillez d\'abord générer un rapport');
+        return;
+    }
+
+    // Afficher l'indicateur de chargement
+    button.innerHTML = '⏳ Génération du PDF...';
+    button.disabled = true;
+
+    try {
+        console.log('📥 Téléchargement du rapport pour:', reportDate);
+        
+        // Créer un formulaire pour envoyer les données
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/admin/reports/download-date-report';
+        
+        // Ajouter le token CSRF
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = '_token';
+        csrfToken.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        form.appendChild(csrfToken);
+        
+        // Ajouter la date du rapport
+        const dateInput = document.createElement('input');
+        dateInput.type = 'hidden';
+        dateInput.name = 'report_date';
+        dateInput.value = reportDate;
+        form.appendChild(dateInput);
+        
+        // Ajouter le formulaire au document et le soumettre
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+        
+    } catch (error) {
+        console.error('❌ Erreur téléchargement rapport:', error);
+        alert('Erreur lors du téléchargement: ' + error.message);
+    } finally {
+        // Restaurer le bouton après un court délai
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 2000);
+    }
+}
+
 // Fonctions pour le modal de rapport par date
 function closeDateReportModal() {
     document.getElementById('dateReportModal').classList.add('hidden');
@@ -1832,6 +1895,9 @@ document.addEventListener('alpine:init', () => {
             
             // Générer le contenu du rapport
             if (content) content.innerHTML = this.generateReportHTML(report);
+            
+            // Stocker la date du rapport pour le téléchargement
+            modal.setAttribute('data-report-date', report.date);
             
             // Afficher le modal
             if (modal) modal.classList.remove('hidden');
@@ -2244,6 +2310,18 @@ document.addEventListener('DOMContentLoaded', function() {
     background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+/* Styles pour le bouton de téléchargement */
+#downloadReportBtn {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    transition: all 0.3s ease;
+}
+
+#downloadReportBtn:hover {
+    background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 /* Animation de chargement pour l'impression */
