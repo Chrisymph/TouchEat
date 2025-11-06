@@ -39,6 +39,10 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/orders/{id}/add-time', [AdminController::class, 'addTimeToOrder'])->name('admin.orders.add-time');
     
     Route::post('/orders/{id}/status-ajax', [AdminController::class, 'updateOrderStatusAjax'])->name('admin.orders.status.ajax');
+
+    // Routes pour l'impression des reçus
+Route::get('/orders/{id}/receipt', [AdminController::class, 'generateReceipt'])->name('admin.orders.receipt');
+Route::get('/orders/{id}/print', [AdminController::class, 'printReceipt'])->name('admin.orders.print');
     
     Route::get('/menu/ajax', [AdminController::class, 'menuAjax'])->name('admin.menu.ajax');
     Route::get('/menu', [AdminController::class, 'menu'])->name('admin.menu');
@@ -63,6 +67,10 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/reports/ajax', [AdminController::class, 'reportsAjax'])->name('admin.reports.ajax');
     Route::get('/reports/chart-data', [AdminController::class, 'reportsChartData'])->name('admin.reports.chart');
     Route::post('/reports/save', [AdminController::class, 'saveReport'])->name('admin.reports.save');
+    
+    // NOUVELLE ROUTE POUR LE RAPPORT PAR DATE
+    Route::post('/reports/generate-date-report', [AdminController::class, 'generateDateReport'])->name('admin.reports.generate-date');
+    Route::post('/reports/download-date-report', [AdminController::class, 'downloadDateReport'])->name('admin.reports.download-date');
     
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });

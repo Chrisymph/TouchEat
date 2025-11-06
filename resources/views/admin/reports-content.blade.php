@@ -1,4 +1,4 @@
-<div class="space-y-6" x-data="reportsComponent()" x-init="init()">
+<div class="space-y-6">
     <!-- En-tête -->
     <div class="flex justify-between items-center">
         <div>
@@ -7,30 +7,26 @@
                 Analyses basées sur {{ $totalOrders }} commandes terminées
             </p>
         </div>
-        <button @click="saveReport()" 
-                class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
-            💾 Sauvegarder ce rapport
-        </button>
-    </div>
-
-    <!-- Filtres par date -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <form @submit.prevent="applyFilters()" class="flex gap-4 items-end">
-            <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Date de début</label>
-                <input type="date" x-model="filters.start_date" 
-                       class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        
+        <!-- Bouton Voir Rapport avec champ date -->
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3 bg-white rounded-lg shadow-sm border p-3">
+                <label for="reportDate" class="text-sm font-medium text-gray-700 whitespace-nowrap">
+                    Rapport du :
+                </label>
+                <input type="date" 
+                       id="reportDate" 
+                       class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       max="{{ date('Y-m-d') }}"
+                       value="{{ date('Y-m-d') }}">
+                <button x-on:click="generateDateReport()"
+                        id="generateReportBtn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-semibold transition-colors duration-200 flex items-center gap-2">
+                    <span id="reportBtnText">📊 Voir Rapport</span>
+                    <span id="reportBtnLoading" class="hidden animate-spin">⏳</span>
+                </button>
             </div>
-            <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Date de fin</label>
-                <input type="date" x-model="filters.end_date" 
-                       class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <button type="submit" 
-                    class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                Appliquer
-            </button>
-        </form>
+        </div>
     </div>
 
     <!-- Métriques clés -->
@@ -38,8 +34,8 @@
         <!-- Carte Chiffre d'affaires -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="w-12 h-15 p-3 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <i class="bi bi bi-cash-coin text-orange-600 text-xl"></i>
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <span class="text-blue-600 text-xl">💰</span>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Chiffre d'affaires</p>
@@ -51,8 +47,8 @@
         <!-- Carte Commandes totales -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="w-12 h-15 p-3 bg-red-100 rounded-lg flex items-center justify-center">
-                    <i class="bi bi-box-seam text-red-600 text-xl"></i>
+                <div class="p-3 bg-purple-100 rounded-lg">
+                    <span class="text-purple-600 text-xl">📦</span>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Commandes totales</p>
@@ -64,8 +60,8 @@
         <!-- Carte Panier moyen -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="w-12 h-15 p-3 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <i class="bi bi-graph-up-arrow text-yellow-600 text-xl"></i>
+                <div class="p-3 bg-green-100 rounded-lg">
+                    <span class="text-green-600 text-xl">📈</span>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Panier moyen</p>
@@ -77,8 +73,8 @@
         <!-- Carte Temps moyen -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4">
-                <div class="w-12 h-15 p-3 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <i class="bi bi-clock-history text-black-600 text-xl"></i>
+                <div class="p-3 bg-gray-100 rounded-lg">
+                    <span class="text-gray-600 text-xl">⏰</span>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Temps moyen</p>
@@ -93,37 +89,37 @@
         <div class="bg-white rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold flex items-center gap-2">
-                    <i class="bi bi-bar-chart me-2 fs-5" style="color:black"></i>
+                    <span class="text-xl">📊</span>
                     Répartition des commandes
                 </h3>
             </div>
             <div class="p-6 space-y-4">
                 <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-3">
-                        <div class="order-icon me-3 p-2 bg-orange-100 rounded-full w-9 h-9 flex items-center justify-center">
-                           <i class="bi bi-box-seam text-orange-600"></i>
+                        <div class="p-2 bg-blue-100 rounded-full">
+                            <span class="text-blue-600">🍽️</span>
                         </div>
                         <div>
-                            <p class="font-bold">Sur place</p>
+                            <p class="font-medium">Sur place</p>
                             <p class="text-sm text-gray-600">{{ $dineInOrders }} commandes</p>
                         </div>
                     </div>
-                    <span class="px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold">
+                    <span class="px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm font-semibold">
                         {{ $totalOrders > 0 ? round(($dineInOrders / $totalOrders) * 100) : 0 }}%
                     </span>
                 </div>
 
                 <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-3">
-                        <div class="order-icon me-3 p-2 bg-red-100 rounded-full w-9 h-9 flex items-center justify-center">
-                           <i class="bi bi-truck text-red-600"></i>
+                        <div class="p-2 bg-purple-100 rounded-full">
+                            <span class="text-purple-600">🚚</span>
                         </div>
                         <div>
-                            <p class="font-bold">Livraison</p>
+                            <p class="font-medium">Livraison</p>
                             <p class="text-sm text-gray-600">{{ $deliveryOrders }} commandes</p>
                         </div>
                     </div>
-                    <span class="px-3 py-1 bg-red-600 text-white rounded-full text-sm font-semibold">
+                    <span class="px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm font-semibold">
                         {{ $totalOrders > 0 ? round(($deliveryOrders / $totalOrders) * 100) : 0 }}%
                     </span>
                 </div>
@@ -134,28 +130,24 @@
         <div class="bg-white rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold flex items-center gap-2">
-                    <i class="bi bi-graph-up-arrow me-2 fs-5" style="color:black"></i>
+                    <span class="text-xl">📈</span>
                     Top 5 des articles
                 </h3>
             </div>
             <div class="p-6 space-y-4">
-
-           
                 <!-- Graphique -->
-
                 <div class="relative" style="height: 250px;">
                     <canvas id="reportsChart"></canvas>
                 </div>
 
-
                 <!-- Légende -->
                 <div class="flex items-center justify-center gap-4 text-sm">
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-sm bg-orange-500"></div>
+                        <div class="w-3 h-3 rounded-sm bg-blue-500"></div>
                         <span>Repas</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-sm bg-red-500"></div>
+                        <div class="w-3 h-3 rounded-sm bg-purple-500"></div>
                         <span>Boissons</span>
                     </div>
                 </div>
@@ -193,56 +185,57 @@
     </div>
 
     <!-- Statistiques détaillées -->
-<div class="bg-white rounded-lg shadow">
-    <div class="px-6 py-4 border-b border-gray-200">
-        <h3 class="text-lg font-semibold">Statistiques détaillées (Toutes périodes)</h3>
-    </div>
-    <div class="p-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="space-y-2">
-                <h4 class="font-semibold">Commandes par statut</h4>
-                <div class="space-y-1">
-                    @foreach($detailedStats['ordersByStatus'] as $status => $count)
-                    <div class="flex justify-between text-sm">
-                        <span class="capitalize">{{ str_replace('_', ' ', $status) }}</span>
-                        <span>{{ $count }}</span>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-
-            <div class="space-y-2">
-                <h4 class="font-semibold">Analyse des revenus</h4>
-                <div class="space-y-1">
-                    <div class="flex justify-between text-sm">
-                        <span>Revenus sur place</span>
-                        <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'], 0, ',', ' ') }} FCFA</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span>Revenus livraison</span>
-                        <span>{{ number_format($detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
-                    </div>
-                    <div class="flex justify-between text-sm font-semibold border-t pt-1">
-                        <span>Total général</span>
-                        <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'] + $detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold">Statistiques détaillées (Toutes périodes)</h3>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="space-y-2">
+                    <h4 class="font-semibold">Commandes par statut</h4>
+                    <div class="space-y-1">
+                        @foreach($detailedStats['ordersByStatus'] as $status => $count)
+                        <div class="flex justify-between text-sm">
+                            <span class="capitalize">{{ str_replace('_', ' ', $status) }}</span>
+                            <span>{{ $count }}</span>
+                        </div>
+                        @endforeach
                     </div>
                 </div>
-            </div>
 
-            <div class="space-y-2">
-                <h4 class="font-semibold">Performance menu</h4>
-                <div class="space-y-1">
-                    <div class="flex justify-between text-sm">
-                        <span>Articles repas vendus</span>
-                        <span>{{ $detailedStats['menuPerformance']['repas'] }}</span>
+                <div class="space-y-2">
+                    <h4 class="font-semibold">Analyse des revenus</h4>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-sm">
+                            <span>Revenus sur place</span>
+                            <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'], 0, ',', ' ') }} FCFA</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span>Revenus livraison</span>
+                            <span>{{ number_format($detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
+                        </div>
+                        <div class="flex justify-between text-sm font-semibold border-t pt-1">
+                            <span>Total général</span>
+                            <span>{{ number_format($detailedStats['revenueAnalysis']['sur_place'] + $detailedStats['revenueAnalysis']['livraison'], 0, ',', ' ') }} FCFA</span>
+                        </div>
                     </div>
-                    <div class="flex justify-between text-sm">
-                        <span>Boissons vendues</span>
-                        <span>{{ $detailedStats['menuPerformance']['boisson'] }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm font-semibold border-t pt-1">
-                        <span>Total articles</span>
-                        <span>{{ $detailedStats['menuPerformance']['repas'] + $detailedStats['menuPerformance']['boisson'] }}</span>
+                </div>
+
+                <div class="space-y-2">
+                    <h4 class="font-semibold">Performance menu</h4>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-sm">
+                            <span>Articles repas vendus</span>
+                            <span>{{ $detailedStats['menuPerformance']['repas'] }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span>Boissons vendues</span>
+                            <span>{{ $detailedStats['menuPerformance']['boisson'] }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm font-semibold border-t pt-1">
+                            <span>Total articles</span>
+                            <span>{{ $detailedStats['menuPerformance']['repas'] + $detailedStats['menuPerformance']['boisson'] }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -250,240 +243,5 @@
     </div>
 </div>
 
-<script>
-// ✅ DÉCLARER LA FONCTION GLOBALEMENT pour qu'Alpine.js puisse la trouver
-window.reportsComponent = function() {
-    return {
-        filters: {
-            start_date: '{{ $startDate }}',
-            end_date: '{{ $endDate }}'
-        },
-        chart: null,
-        
-        init() {
-            console.log('✅ Initialisation du composant rapports...');
-            console.log('📊 Chart.js disponible:', typeof Chart !== 'undefined');
-            console.log('📈 Données disponibles:', @json($topItems));
-            
-            // Attendre que le DOM soit complètement rendu
-            this.$nextTick(() => {
-                setTimeout(() => {
-                    this.renderChart();
-                }, 100);
-            });
-        },
-        
-        async applyFilters() {
-    try {
-        console.log('🔄 Application des filtres:', this.filters);
-        
-        const params = new URLSearchParams({
-            start_date: this.filters.start_date,
-            end_date: this.filters.end_date
-        });
-
-        // Recharger le contenu via AJAX
-        const response = await fetch(`/admin/reports/ajax?${params}`, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/html'
-            }
-        });
-
-        if (response.ok) {
-            const html = await response.text();
-            console.log('✅ Données rechargées avec succès');
-            
-            // Remplacer tout le contenu du composant
-            this.$el.outerHTML = html;
-            
-            // Réinitialiser Alpine.js sur le nouveau contenu
-            Alpine.initTree(this.$el);
-            
-        } else {
-            console.error('❌ Erreur HTTP:', response.status);
-            alert('Erreur lors du chargement des données');
-        }
-        
-    } catch (error) {
-        console.error('❌ Erreur lors du filtrage:', error);
-        alert('Erreur lors de l\'application des filtres');
-    }
-},
-        
-        async saveReport() {
-            try {
-                const response = await fetch('{{ route("admin.reports.save") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        start_date: this.filters.start_date,
-                        end_date: this.filters.end_date
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('✅ Rapport sauvegardé avec succès!');
-                } else {
-                    alert('❌ Erreur: ' + result.message);
-                }
-                
-            } catch (error) {
-                console.error('❌ Erreur lors de la sauvegarde:', error);
-                alert('❌ Erreur réseau lors de la sauvegarde');
-            }
-        },
-        
-        renderChart() {
-            console.log('🎨 Tentative de rendu du graphique...');
-            const ctx = document.getElementById('reportsChart');
-            
-            if (!ctx) {
-                console.error('❌ Canvas pour le graphique non trouvé');
-                return;
-            }
-            
-            const topItems = @json($topItems);
-            console.log('📊 Données pour le graphique:', topItems);
-            
-            // Vérifier que Chart.js est disponible
-            if (typeof Chart === 'undefined') {
-                console.error('❌ Chart.js non disponible');
-                this.showChartError(ctx, 'Chart.js non chargé');
-                return;
-            }
-            
-            // Si pas de données, afficher un message
-            if (topItems.length === 0) {
-                this.showChartError(ctx, 'Aucune donnée disponible pour le graphique');
-                return;
-            }
-            
-            // Détruire le graphique existant
-            if (this.chart) {
-                this.chart.destroy();
-            }
-            
-            try {
-                this.chart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: topItems.map(item => item.name),
-                        datasets: [{
-                            label: 'Revenus (FCFA)',
-                            data: topItems.map(item => item.totalRevenue),
-                            backgroundColor: topItems.map(item => 
-                                item.category === 'repas' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(147, 51, 234, 0.8)'
-                            ),
-                            borderColor: topItems.map(item =>
-                                item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
-                            ),
-                            borderWidth: 2,
-                            borderRadius: 8,
-                            borderSkipped: false,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                grid: {
-                                    display: false
-                                },
-                                ticks: {
-                                    maxRotation: 45,
-                                    minRotation: 45,
-                                    font: {
-                                        size: 11
-                                    }
-                                }
-                            },
-                            y: {
-                                beginAtZero: true,
-                                grid: {
-                                    color: 'rgba(0, 0, 0, 0.1)'
-                                },
-                                ticks: {
-                                    callback: function(value) {
-                                        return value.toLocaleString('fr-FR') + ' FCFA';
-                                    },
-                                    font: {
-                                        size: 10
-                                    }
-                                }
-                            }
-                        },
-                        plugins: {
-                            tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                titleFont: {
-                                    size: 12
-                                },
-                                bodyFont: {
-                                    size: 11
-                                },
-                                callbacks: {
-                                    label: function(context) {
-                                        const item = topItems[context.dataIndex];
-                                        return [
-                                            `Revenus: ${item.totalRevenue.toLocaleString('fr-FR')} FCFA`,
-                                            `Quantité: ${item.totalQuantity} vendus`,
-                                            `Commandes: ${item.orders}`
-                                        ];
-                                    }
-                                }
-                            },
-                            legend: {
-                                display: false
-                            }
-                        },
-                        animation: {
-                            duration: 1000,
-                            easing: 'easeInOutQuart'
-                        }
-                    }
-                });
-                
-                console.log('✅ Graphique créé avec succès!');
-                
-            } catch (error) {
-                console.error('❌ Erreur lors de la création du graphique:', error);
-                this.showChartError(ctx, 'Erreur: ' + error.message);
-            }
-        },
-        
-        showChartError(ctx, message) {
-            ctx.parentElement.innerHTML = `
-                <div class="text-center py-8 text-gray-500">
-                    <div class="text-4xl mb-2">📊</div>
-                    <p>${message}</p>
-                    <p class="text-sm mt-2">Vérifiez la console pour plus de détails</p>
-                </div>
-            `;
-        }
-    }
-}
-
-// ✅ S'assurer qu'Alpine.js connaît le composant
-document.addEventListener('alpine:init', () => {
-    console.log('✅ Alpine.js initialisé - reportsComponent prêt');
-    
-    // Vérifier que Chart.js est disponible
-    if (typeof Chart === 'undefined') {
-        console.error('❌ Chart.js non disponible au moment de l\'initialisation Alpine');
-    } else {
-        console.log('✅ Chart.js disponible au moment de l\'initialisation Alpine');
-    }
-});
-
-// ✅ Réinitialiser après chargement AJAX
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ DOM chargé - vérification des composants...');
-});
-</script>
+<!-- Stocker les données du graphique pour JavaScript -->
+<div data-chart-data='@json($topItems)' class="hidden"></div>
