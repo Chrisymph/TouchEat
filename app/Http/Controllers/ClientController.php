@@ -147,7 +147,9 @@ class ClientController extends Controller
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
             'phone_number' => 'required|string',
-            'existing_order_id' => 'nullable|exists:orders,id' // NOUVEAU : ID de commande existante
+            'existing_order_id' => 'nullable|exists:orders,id', // NOUVEAU : ID de commande existante
+            'delivery_address' => 'nullable|string|max:255',
+            'delivery_notes' => 'nullable|string|max:500'
         ]);
 
         $cart = session()->get('cart', []);
@@ -219,7 +221,9 @@ class ClientController extends Controller
                 'payment_status' => 'en_attente',
                 'order_type' => $request->order_type,
                 'customer_phone' => $request->phone_number,
-                'estimated_time' => null
+                'estimated_time' => null,
+                'delivery_address' => $request->delivery_address,
+                'delivery_notes' => $request->delivery_notes
             ]);
 
             foreach ($cart as $menuItemId => $item) {
@@ -343,6 +347,52 @@ class ClientController extends Controller
             'status' => $order->status,
             'estimated_time' => $order->estimated_time,
             'marked_ready_at' => $order->marked_ready_at
+        ]);
+    }
+
+    /**
+     * Demander la livraison pour une commande existante
+     */
+    public function requestDelivery(Request $request, $orderId)
+    {
+        // CORRECTION : Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Votre compte a été suspendu. Vous ne pouvez pas demander la livraison.'
+            ], 403);
+        }
+
+        $request->validate([
+            'delivery_address' => 'nullable|string|max:255',
+            'delivery_notes' => 'nullable|string|max:500'
+        ]);
+
+        $order = Order::where('id', $orderId)
+            ->where('table_number', Auth::user()->table_number)
+            ->firstOrFail();
+
+        // Vérifier si la commande peut être livrée
+        if ($order->status === 'terminé' || $order->status === 'prêt') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de demander la livraison pour une commande déjà prête ou terminée.'
+            ]);
+        }
+
+        // Mettre à jour le type de commande en livraison
+        $order->update([
+            'order_type' => 'livraison',
+            'delivery_address' => $request->delivery_address,
+            'delivery_notes' => $request->delivery_notes,
+            'status' => 'en_cours' // Remettre en cours si c'était commandé
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Demande de livraison envoyée avec succès! Notre équipe vous apportera votre commande.',
+            'order_type' => $order->order_type
         ]);
     }
 

@@ -475,6 +475,63 @@
                 </div>
             </div>
         </template>
+
+        <!-- Modal de livraison -->
+        <template x-if="showDeliveryModal">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Commande en Livraison</h3>
+                    <p class="text-gray-600 mb-6">Veuillez fournir les informations pour la livraison</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de téléphone</label>
+                            <input type="tel" x-model="phoneNumber" 
+                                   placeholder="ex: 77 123 45 67"
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Adresse de livraison (optionnel)</label>
+                            <input type="text" x-model="deliveryAddress" 
+                                   placeholder="Adresse complète"
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notes pour la livraison (optionnel)</label>
+                            <textarea x-model="deliveryNotes" 
+                                      placeholder="Instructions spéciales, étage, code porte, etc."
+                                      rows="3"
+                                      class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div class="flex justify-between items-center text-lg font-semibold">
+                                <span class="text-gray-700">Total à payer</span>
+                                <span class="text-gray-800" x-text="formatPrice(cartTotal)"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 mt-6">
+                        <button @click="showDeliveryModal = false" 
+                                class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                            Annuler
+                        </button>
+                        <button @click="placeOrder('livraison')" 
+                                :disabled="!phoneNumber.trim() || isProcessingPayment"
+                                :class="!phoneNumber.trim() || isProcessingPayment ? 
+                                    'bg-green-400 cursor-not-allowed' : 
+                                    'bg-green-600 hover:bg-green-700'"
+                                class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                            <template x-if="isProcessingPayment">Traitement...</template>
+                            <template x-if="!isProcessingPayment">Commander en livraison</template>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
 
     <script>
@@ -487,9 +544,11 @@
             cartCount: {{ $cartCount }},
             cartTotal: 0,
             showPaymentModal: false,
-            showAddToOrderConfirmationModal: false, // CORRIGÉ : Variable renommée pour éviter la confusion
+            showAddToOrderConfirmationModal: false,
             showDeliveryModal: false,
             phoneNumber: '',
+            deliveryAddress: '',
+            deliveryNotes: '',
             isProcessingPayment: false,
             hasActiveOrder: @json($currentOrder !== null),
             currentOrder: @json($currentOrder),
@@ -597,7 +656,7 @@
                     });
 
                     if (response.data.success) {
-                        this.showAddToOrderConfirmationModal = false; // CORRIGÉ : Fermer le bon modal
+                        this.showAddToOrderConfirmationModal = false;
                         this.cartItems = [];
                         this.cartCount = 0;
                         this.cartTotal = 0;
@@ -637,18 +696,33 @@
                 this.isProcessingPayment = true;
 
                 try {
-                    const response = await axios.post('{{ route("client.order.place") }}', {
+                    const requestData = {
                         order_type: orderType,
                         phone_number: this.phoneNumber
-                    });
+                    };
+
+                    // Ajouter les informations de livraison si c'est une commande en livraison
+                    if (orderType === 'livraison') {
+                        requestData.delivery_address = this.deliveryAddress;
+                        requestData.delivery_notes = this.deliveryNotes;
+                    }
+
+                    const response = await axios.post('{{ route("client.order.place") }}', requestData);
 
                     if (response.data.success) {
-                        this.showPaymentModal = false;
+                        if (orderType === 'livraison') {
+                            this.showDeliveryModal = false;
+                        } else {
+                            this.showPaymentModal = false;
+                        }
+                        
                         this.hasActiveOrder = true;
                         this.cartItems = [];
                         this.cartCount = 0;
                         this.cartTotal = 0;
                         this.phoneNumber = '';
+                        this.deliveryAddress = '';
+                        this.deliveryNotes = '';
                         
                         this.showToast('Commande passée avec succès!');
                         

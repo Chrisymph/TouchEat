@@ -132,7 +132,7 @@
                     <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
                         <h3 class="text-xl font-bold text-gray-800 mb-4">Actions</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button @click="requestDelivery()" 
+                            <button @click="showDeliveryModal = true" 
                                     :disabled="orderStatus === 'terminé' || orderStatus === 'prêt'"
                                     :class="(orderStatus === 'terminé' || orderStatus === 'prêt') ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'"
                                     class="w-full text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
@@ -234,6 +234,74 @@
                 </button>
             </div>
         </div>
+
+        <!-- Modal de livraison -->
+        <template x-if="showDeliveryModal">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Demande de Livraison</h3>
+                    <p class="text-gray-600 mb-6">Veuillez fournir les informations pour la livraison</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Adresse de livraison <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" x-model="deliveryAddress" 
+                                   placeholder="Ex: Table 5, Zone VIP, Terrasse..."
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                   required>
+                            <p class="text-xs text-gray-500 mt-1">Indiquez l'emplacement exact où nous devons vous livrer</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notes supplémentaires (optionnel)</label>
+                            <textarea x-model="deliveryNotes" 
+                                      placeholder="Instructions spéciales, préférences, etc."
+                                      rows="3"
+                                      class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"></textarea>
+                        </div>
+                        
+                        <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                            <div class="flex items-center space-x-2 text-green-800 mb-2">
+                                <span class="text-lg">🚗</span>
+                                <span class="font-semibold">Service de livraison</span>
+                            </div>
+                            <p class="text-sm text-green-700">
+                                Notre équipe vous apportera votre commande directement à votre emplacement.
+                                Temps de livraison estimé : 5-10 minutes après préparation.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 mt-6">
+                        <button @click="showDeliveryModal = false; deliveryAddress = ''; deliveryNotes = ''" 
+                                class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                            Annuler
+                        </button>
+                        <button @click="requestDelivery()" 
+                                :disabled="!deliveryAddress.trim() || isProcessingDelivery"
+                                :class="!deliveryAddress.trim() || isProcessingDelivery ? 
+                                    'bg-green-400 cursor-not-allowed' : 
+                                    'bg-green-600 hover:bg-green-700'"
+                                class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                            <template x-if="isProcessingDelivery">
+                                <span class="flex items-center justify-center space-x-2">
+                                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span>Traitement...</span>
+                                </span>
+                            </template>
+                            <template x-if="!isProcessingDelivery">
+                                Confirmer la livraison
+                            </template>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
 
     <script>
@@ -254,6 +322,12 @@
                 // Statut
                 orderStatus: '{{ $order->status }}',
                 statusCheckInterval: null,
+
+                // Livraison
+                showDeliveryModal: false,
+                deliveryAddress: '',
+                deliveryNotes: '',
+                isProcessingDelivery: false,
 
                 init() {
                     this.startStatusCheck();
@@ -346,6 +420,51 @@
                     window.location.href = '/client/dashboard?order_id=' + this.orderId;
                 },
 
+                async requestDelivery() {
+                    if (!this.deliveryAddress.trim()) {
+                        this.showToast('Veuillez saisir une adresse de livraison', 'error');
+                        return;
+                    }
+
+                    this.isProcessingDelivery = true;
+
+                    try {
+                        const response = await fetch(`/client/order/${this.orderId}/request-delivery`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                delivery_address: this.deliveryAddress,
+                                delivery_notes: this.deliveryNotes
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.showToast(data.message);
+                            this.orderType = data.order_type;
+                            this.showDeliveryModal = false;
+                            this.deliveryAddress = '';
+                            this.deliveryNotes = '';
+                            
+                            // Mettre à jour l'affichage après un court délai
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            this.showToast(data.message || 'Erreur lors de la demande de livraison', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Erreur:', error);
+                        this.showToast('Erreur lors de la demande de livraison', 'error');
+                    } finally {
+                        this.isProcessingDelivery = false;
+                    }
+                },
+
                 startTimer() {
                     // Ne démarrer le timer que si la commande est en cours et a un temps estimé
                     if (this.orderStatus !== 'en_cours' || this.estimatedTime <= 0) {
@@ -417,18 +536,6 @@
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 0
                     }).format(price) + ' FCFA';
-                },
-
-                requestDelivery() {
-                    if (this.orderStatus === 'prêt' || this.orderStatus === 'terminé') {
-                        this.showToast('Impossible de demander la livraison pour une commande prête ou terminée', 'error');
-                        return;
-                    }
-                    
-                    if (confirm('Souhaitez-vous que nous vous apportions votre commande à table ?')) {
-                        // Logique pour demander la livraison
-                        this.showToast('Service en table demandé !');
-                    }
                 },
 
                 showToast(message, type = 'success') {
