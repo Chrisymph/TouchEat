@@ -50,26 +50,52 @@
             <div class="bg-white rounded-lg shadow transition-all duration-200 hover:shadow-lg" id="order-card-{{ $order->id }}">
                 <div class="p-6">
                     <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h3 class="text-lg font-semibold">#{{ $order->id }}</h3>
-                            <p class="text-gray-600 text-sm">
-                                @if($order->order_type === 'livraison')
-                                    🚚 Livraison {{ $order->customer_phone ?? '—' }}
-                                @elseif($order->order_type === 'emporter')
-                                    🛍️ À emporter {{ $order->customer_phone ?? '—' }}
-                                @else
-                                    🍽️ Table {{ $order->table_number }}
-                                @endif
-                                • {{ $order->created_at->format('H:i') }}
-                            </p>
+                        <div class="flex-1">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <h3 class="text-lg font-semibold">#{{ $order->id }}</h3>
+                                    <p class="text-gray-600 text-sm">
+                                        @if($order->order_type === 'livraison')
+                                            🚚 Livraison • {{ $order->customer_phone ?? '—' }}
+                                        @elseif($order->order_type === 'emporter')
+                                            🛍️ À emporter • {{ $order->customer_phone ?? '—' }}
+                                        @else
+                                            🍽️ Table {{ $order->table_number }}
+                                        @endif
+                                        • {{ $order->created_at->format('H:i') }}
+                                    </p>
+                                </div>
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                    @if($order->status === 'commandé') bg-yellow-100 text-yellow-800
+                                    @elseif($order->status === 'en_cours') bg-blue-100 text-blue-800
+                                    @elseif($order->status === 'prêt') bg-green-100 text-green-800
+                                    @else bg-gray-100 text-gray-800 @endif">
+                                    {{ ucfirst($order->status) }}
+                                </span>
+                            </div>
+
+                            <!-- AFFICHAGE DE L'ADRESSE DE LIVRAISON - VERSION CORRIGÉE -->
+                            @if($order->order_type === 'livraison')
+                                <div class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div class="flex items-start space-x-2">
+                                        <span class="text-blue-600 mt-0.5">📍</span>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-blue-800">Adresse de livraison</p>
+                                            @if($order->delivery_address)
+                                                <p class="text-xs text-blue-700 mt-1">{{ $order->delivery_address }}</p>
+                                            @else
+                                                <p class="text-xs text-blue-600 italic mt-1">Adresse non spécifiée</p>
+                                            @endif
+                                            @if($order->delivery_notes)
+                                                <p class="text-xs text-blue-600 mt-2">
+                                                    <span class="font-medium">Notes:</span> {{ $order->delivery_notes }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
-                        <span class="px-2 py-1 rounded-full text-xs font-semibold
-                            @if($order->status === 'commandé') bg-yellow-100 text-yellow-800
-                            @elseif($order->status === 'en_cours') bg-blue-100 text-blue-800
-                            @elseif($order->status === 'prêt') bg-green-100 text-green-800
-                            @else bg-gray-100 text-gray-800 @endif">
-                            {{ ucfirst($order->status) }}
-                        </span>
                     </div>
 
                     <!-- Articles -->

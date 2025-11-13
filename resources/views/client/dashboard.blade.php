@@ -401,9 +401,12 @@
                     
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de téléphone</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Numéro de téléphone <span class="text-red-500">*</span>
+                            </label>
                             <input type="tel" x-model="phoneNumber" 
                                    placeholder="ex: 77 123 45 67"
+                                   required
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         
@@ -443,9 +446,12 @@
                     
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de téléphone</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Numéro de téléphone <span class="text-red-500">*</span>
+                            </label>
                             <input type="tel" x-model="phoneNumber" 
                                    placeholder="ex: 77 123 45 67"
+                                   required
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         
@@ -476,7 +482,7 @@
             </div>
         </template>
 
-        <!-- Modal de livraison -->
+        <!-- Modal de livraison - CORRIGÉ : Adresse obligatoire -->
         <template x-if="showDeliveryModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
@@ -485,17 +491,24 @@
                     
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de téléphone</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Numéro de téléphone <span class="text-red-500">*</span>
+                            </label>
                             <input type="tel" x-model="phoneNumber" 
                                    placeholder="ex: 77 123 45 67"
+                                   required
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Adresse de livraison (optionnel)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Adresse de livraison <span class="text-red-500">*</span>
+                            </label>
                             <input type="text" x-model="deliveryAddress" 
-                                   placeholder="Adresse complète"
+                                   placeholder="Ex: Table 5, Zone VIP, Terrasse..."
+                                   required
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <p class="text-xs text-gray-500 mt-1">Indiquez l'emplacement exact où nous devons vous livrer</p>
                         </div>
                         
                         <div>
@@ -520,8 +533,8 @@
                             Annuler
                         </button>
                         <button @click="placeOrder('livraison')" 
-                                :disabled="!phoneNumber.trim() || isProcessingPayment"
-                                :class="!phoneNumber.trim() || isProcessingPayment ? 
+                                :disabled="!phoneNumber.trim() || !deliveryAddress.trim() || isProcessingPayment"
+                                :class="!phoneNumber.trim() || !deliveryAddress.trim() || isProcessingPayment ? 
                                     'bg-green-400 cursor-not-allowed' : 
                                     'bg-green-600 hover:bg-green-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
@@ -688,8 +701,15 @@
             },
 
             async placeOrder(orderType) {
+                // CORRIGÉ : Validation renforcée pour la livraison
                 if (!this.phoneNumber.trim()) {
                     this.showToast('Veuillez entrer votre numéro de téléphone', 'error');
+                    return;
+                }
+
+                // 🔴 CORRECTION : Validation spécifique pour la livraison
+                if (orderType === 'livraison' && !this.deliveryAddress.trim()) {
+                    this.showToast('Veuillez entrer une adresse de livraison', 'error');
                     return;
                 }
 

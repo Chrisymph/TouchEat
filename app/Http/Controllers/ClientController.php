@@ -144,11 +144,12 @@ class ClientController extends Controller
             ], 403);
         }
 
+        // CORRECTION : Rendre l'adresse obligatoire pour la livraison
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
             'phone_number' => 'required|string',
-            'existing_order_id' => 'nullable|exists:orders,id', // NOUVEAU : ID de commande existante
-            'delivery_address' => 'nullable|string|max:255',
+            'existing_order_id' => 'nullable|exists:orders,id',
+            'delivery_address' => 'required_if:order_type,livraison|string|max:255', // 🔴 CORRECTION ICI
             'delivery_notes' => 'nullable|string|max:500'
         ]);
 
@@ -222,8 +223,8 @@ class ClientController extends Controller
                 'order_type' => $request->order_type,
                 'customer_phone' => $request->phone_number,
                 'estimated_time' => null,
-                'delivery_address' => $request->delivery_address,
-                'delivery_notes' => $request->delivery_notes
+                'delivery_address' => $request->delivery_address, // ✅ Ce champ sera maintenant rempli
+                'delivery_notes' => $request->delivery_notes     // ✅ Ce champ aussi
             ]);
 
             foreach ($cart as $menuItemId => $item) {
@@ -365,7 +366,7 @@ class ClientController extends Controller
         }
 
         $request->validate([
-            'delivery_address' => 'nullable|string|max:255',
+            'delivery_address' => 'required|string|max:255', // 🔴 CORRECTION : Rendre obligatoire
             'delivery_notes' => 'nullable|string|max:500'
         ]);
 

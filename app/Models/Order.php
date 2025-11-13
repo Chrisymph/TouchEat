@@ -19,6 +19,8 @@ class Order extends Model
         'status', // commandé, en_cours, prêt, terminé, livré
         'estimated_time',
         'total',
+        'delivery_address', // Assurez-vous que c'est présent
+        'delivery_notes',   // Et celui-ci aussi
         'marked_ready_at',
     ];
 

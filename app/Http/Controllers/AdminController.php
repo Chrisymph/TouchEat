@@ -89,45 +89,46 @@ class AdminController extends Controller
         return view('admin.orders', compact('orders', 'status', 'orderCounts'));
     }
 
-    /**
-     * Gestion des commandes (version AJAX pour le dashboard)
-     */
-    public function ordersAjax(Request $request)
-    {
-        $status = $request->get('status', 'pending');
-        $admin = Auth::user();
-        
-        // CORRECTION : Récupérer seulement les tables des clients liés
-        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
-        
-        $query = Order::with(['items.menuItem'])
-                    ->whereIn('table_number', $linkedClientTables);
-        
-        switch ($status) {
-            case 'pending':
-                $query->whereIn('status', ['commandé', 'en_cours']);
-                break;
-            case 'ready':
-                $query->where('status', 'prêt');
-                break;
-            case 'completed':
-                $query->whereIn('status', ['livré', 'terminé']);
-                break;
-        }
-        
-        $orders = $query->orderBy('created_at', 'desc')->get();
-        
-        $orderCounts = [
-            'pending' => Order::whereIn('table_number', $linkedClientTables)
-                            ->whereIn('status', ['commandé', 'en_cours'])->count(),
-            'ready' => Order::whereIn('table_number', $linkedClientTables)
-                            ->where('status', 'prêt')->count(),
-            'completed' => Order::whereIn('table_number', $linkedClientTables)
-                            ->whereIn('status', ['livré', 'terminé'])->count(),
-        ];
-
-        return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
+/**
+ * Gestion des commandes (version AJAX pour le dashboard)
+ */
+public function ordersAjax(Request $request)
+{
+    $status = $request->get('status', 'pending');
+    $admin = Auth::user();
+    
+    // Récupérer seulement les tables des clients liés
+    $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+    
+    // Version simple : charger tous les champs
+    $query = Order::with('items.menuItem')
+                ->whereIn('table_number', $linkedClientTables);
+    
+    switch ($status) {
+        case 'pending':
+            $query->whereIn('status', ['commandé', 'en_cours']);
+            break;
+        case 'ready':
+            $query->where('status', 'prêt');
+            break;
+        case 'completed':
+            $query->whereIn('status', ['livré', 'terminé']);
+            break;
     }
+    
+    $orders = $query->orderBy('created_at', 'desc')->get();
+
+    $orderCounts = [
+        'pending' => Order::whereIn('table_number', $linkedClientTables)
+                        ->whereIn('status', ['commandé', 'en_cours'])->count(),
+        'ready' => Order::whereIn('table_number', $linkedClientTables)
+                        ->where('status', 'prêt')->count(),
+        'completed' => Order::whereIn('table_number', $linkedClientTables)
+                        ->whereIn('status', ['livré', 'terminé'])->count(),
+    ];
+
+    return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
+}
 
     /**
      * Afficher les détails d'une commande (CORRIGÉ)
