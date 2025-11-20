@@ -84,6 +84,10 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
     Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
     Route::post('/order/{orderId}/add-item', [ClientController::class, 'addToExistingOrder'])->name('client.order.add-item');
+    
+    // NOUVELLE ROUTE POUR LA LIVRAISON
+    Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
+    
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
