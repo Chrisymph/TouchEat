@@ -3,31 +3,36 @@
     <div class="flex justify-between items-center">
         <h2 class="text-3xl font-bold">Gestion des Commandes</h2>
         <div class="flex space-x-4">
-            <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
+            <span class="bg-yellow-400 text-black-600 px-3 py-1 rounded-full text-sm font-semibold">
                 {{ $orderCounts['pending'] }} en attente
             </span>
-            <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+            <span class="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
                 {{ $orderCounts['ready'] }} prêtes
             </span>
         </div>
     </div>
 
     <!-- Onglets des commandes -->
-    <div class="border-b border-gray-200">
-        <nav class="-mb-px flex space-x-8">
-            <button data-status="pending"
-                    class="{{ $status === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+    <div class="mb-6 flex justify-center">
+        <div class="bg-white shadow rounded-lg overflow-hidden w-full max-w-7xl">
+            <div class="flex divide-x divide-gray-200">              
+              <button data-status="pending" 
+                      class="w-1/3 py-3 font-semibold text-sm transition-all duration-200
+                      {{ $status === 'pending' ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100' }}">
                 ⏳ En Attente ({{ $orderCounts['pending'] }})
-            </button>
-            <button data-status="ready"
-                    class="{{ $status === 'ready' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+              </button>  
+              <button data-status="ready" 
+                      class="w-1/3 py-3 font-semibold text-sm transition-all duration-200
+                      {{ $status === 'ready' ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100' }}">
                 ✅ Prêtes ({{ $orderCounts['ready'] }})
-            </button>
-            <button data-status="completed"
-                    class="{{ $status === 'completed' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                🏁 Terminées ({{ $orderCounts['completed'] }})
-            </button>
-        </nav>
+              </button>  
+              <button data-status="completed" 
+                      class="w-1/3 py-3 font-semibold text-sm transition-all duration-200
+                      {{ $status === 'completed' ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100' }}">
+                📜 Terminées ({{ $orderCounts['completed'] }})
+              </button>  
+            </div>
+        </div>
     </div>
 
     <!-- Liste des commandes -->
@@ -64,10 +69,10 @@
                             </p>
                         </div>
                         <span class="px-2 py-1 rounded-full text-xs font-semibold
-                            @if($order->status === 'commandé') bg-yellow-100 text-yellow-800
-                            @elseif($order->status === 'en_cours') bg-blue-100 text-blue-800
-                            @elseif($order->status === 'prêt') bg-green-100 text-green-800
-                            @else bg-gray-100 text-gray-800 @endif">
+                            @if($order->status === 'commandé') bg-yellow-400 text-black-600 border-black-300
+                            @elseif($order->status === 'en_cours') bg-yellow-100 text-yellow-700 border-yellow-300
+                            @elseif($order->status === 'prêt') bg-green-400 text-black-600 border-green-300  
+                            @else bg-gray-400 text-black-600 border-gray-300 @endif">
                             {{ ucfirst($order->status) }}
                         </span>
                     </div>
@@ -88,7 +93,7 @@
                     <div class="border-t pt-2 mb-4">
                         <div class="flex justify-between font-bold">
                             <span>Total</span>
-                            <span class="text-lg text-blue-600" id="order-{{ $order->id }}-total">
+                            <span class="text-lg text-red-600" id="order-{{ $order->id }}-total">
                                 {{ number_format($order->total, 0, ',', ' ') }} FCFA
                             </span>
                         </div>

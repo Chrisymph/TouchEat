@@ -9,28 +9,32 @@
     <!-- Chart.js chargé en premier -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="{{ asset('bootstrap/icons/bootstrap-icons.css') }}">
 </head>
+<style>
+   body {
+        background: linear-gradient(180deg, #fbefe9 0%, #f9eae4 100%);
+        font-family: 'Poppins', sans-serif;
+        color: #2b2b2b;
+    }
+</style>
 <body class="bg-gray-100 min-h-screen">
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
-                <div class="flex items-center space-x-4">
-                    <h1 class="text-2xl font-bold text-gray-900">Dashboard Administrateur</h1>
-                    @auth
-                        <span class="text-sm text-gray-600">Responsable: {{ Auth::user()->manager_name }}</span>
-                    @endauth
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-600">{{ now()->format('d/m/Y') }}</span>
-                    <form action="{{ route('admin.logout') }}" method="POST">
-                        @csrf
-                        <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
-                            Déconnexion
-                        </button>
-                    </form>
-                </div>
-            </div>
+    <header class="py-4 px-6 flex flex-col items-center text-gray-800">
+        <div class="w-full flex justify-between items-center mb-2">
+            <form action="{{ route('admin.logout') }}" method="POST">
+                @csrf
+                <button type="submit" class="ml-10 bg-gray-100 tbg-red-500 text-black px-4 py-2 rounded hover:bg-red-600">
+                    ← Déconnexion
+                </button>
+            </form>
+
+            <h1 class="text-2xl font-bold text-center flex-1">Dashboard Administrateur</h1>
+
+            <span class="mr-12 text-sm text-gray-600">{{ \Carbon\Carbon::now()->translatedFormat('d/m/Y') }}</span>
+        </div>
+
+        <div class="text-center text-gray-600 text-sm">
+            Responsable : <span class="font-semibold">{{ Auth::user()->manager_name ?? 'Admin' }}</span>
         </div>
     </header>
 
