@@ -84,6 +84,8 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
     Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
     Route::post('/order/{orderId}/add-item', [ClientController::class, 'addToExistingOrder'])->name('client.order.add-item');
+    // Dans la section client, ajoutez :
+Route::get('/order/{id}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd');
     
     // NOUVELLE ROUTE POUR LA LIVRAISON
     Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');

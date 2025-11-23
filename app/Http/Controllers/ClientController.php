@@ -148,8 +148,9 @@ class ClientController extends Controller
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
             'phone_number' => 'required|string',
+            'network' => 'required_if:order_type,sur_place|in:mtn,moov,celtis', // NOUVEAU : Validation du réseau
             'existing_order_id' => 'nullable|exists:orders,id',
-            'delivery_address' => 'required_if:order_type,livraison|string|max:255', // 🔴 CORRECTION ICI
+            'delivery_address' => 'required_if:order_type,livraison|string|max:255',
             'delivery_notes' => 'nullable|string|max:500'
         ]);
 
@@ -165,6 +166,11 @@ class ClientController extends Controller
         $total = 0;
         foreach ($cart as $item) {
             $total += $item['price'] * $item['quantity'];
+        }
+
+        // Stocker le réseau sélectionné dans la session pour les commandes sur place
+        if ($request->order_type === 'sur_place' && $request->has('network')) {
+            session()->put('selected_network', $request->network);
         }
 
         // NOUVEAU : Vérifier si on ajoute à une commande existante
@@ -223,8 +229,8 @@ class ClientController extends Controller
                 'order_type' => $request->order_type,
                 'customer_phone' => $request->phone_number,
                 'estimated_time' => null,
-                'delivery_address' => $request->delivery_address, // ✅ Ce champ sera maintenant rempli
-                'delivery_notes' => $request->delivery_notes     // ✅ Ce champ aussi
+                'delivery_address' => $request->delivery_address,
+                'delivery_notes' => $request->delivery_notes
             ]);
 
             foreach ($cart as $menuItemId => $item) {
@@ -240,13 +246,73 @@ class ClientController extends Controller
 
             session()->forget('cart');
 
+            // Déterminer l'URL de redirection
+            $redirectUrl = $request->order_type === 'sur_place' 
+                ? route('client.order.ussd', $order->id) 
+                : route('client.order.confirmation', $order->id);
+
             return response()->json([
                 'success' => true,
                 'order_id' => $order->id,
                 'estimated_time' => $order->estimated_time,
                 'message' => 'Commande passée avec succès!',
-                'redirect_url' => route('client.order.confirmation', $order->id)
+                'redirect_url' => $redirectUrl
             ]);
+        }
+    }
+
+    /**
+     * Afficher la commande USSD pour le paiement
+     */
+    public function showUssdCommand($orderId)
+    {
+        if (!Auth::check() || Auth::user()->role !== 'client') {
+            return redirect()->route('client.auth');
+        }
+
+        // Vérifier si le compte est suspendu
+        $user = Auth::user();
+        if ($user->isSuspended()) {
+            Auth::logout();
+            return redirect()->route('client.auth')->with('error', 'Votre compte a été suspendu. Veuillez contacter l\'administrateur.');
+        }
+
+        $order = Order::with(['items.menuItem'])
+                     ->where('id', $orderId)
+                     ->where('table_number', Auth::user()->table_number)
+                     ->firstOrFail();
+
+        // Récupérer le réseau sélectionné depuis la session ou la requête
+        $selectedNetwork = request()->get('network', session()->get('selected_network', 'mtn'));
+        $ussdCommand = $this->generateUssdCommand($order, $selectedNetwork);
+
+        return view('client.ussd-command', [
+            'tableNumber' => Auth::user()->table_number,
+            'order' => $order,
+            'selectedNetwork' => $selectedNetwork,
+            'ussdCommand' => $ussdCommand
+        ]);
+    }
+
+    /**
+     * Générer la commande USSD selon le réseau
+     */
+    private function generateUssdCommand($order, $network)
+    {
+        $totalAmount = intval($order->total);
+        
+        switch ($network) {
+            case 'moov':
+                return "*855*1*1*0158187101*0158187101*{$totalAmount}*1#";
+            
+            case 'mtn':
+                return "*880*1*1*0166110299*0166110299*{$totalAmount}#";
+            
+            case 'celtis':
+                return "*855*1*1*0158187101*0158187101*{$totalAmount}*1#";
+            
+            default:
+                return "*880*1*1*0166110299*0166110299*{$totalAmount}#";
         }
     }
 
@@ -366,7 +432,7 @@ class ClientController extends Controller
         }
 
         $request->validate([
-            'delivery_address' => 'required|string|max:255', // 🔴 CORRECTION : Rendre obligatoire
+            'delivery_address' => 'required|string|max:255',
             'delivery_notes' => 'nullable|string|max:500'
         ]);
 
@@ -387,7 +453,7 @@ class ClientController extends Controller
             'order_type' => 'livraison',
             'delivery_address' => $request->delivery_address,
             'delivery_notes' => $request->delivery_notes,
-            'status' => 'en_cours' // Remettre en cours si c'était commandé
+            'status' => 'en_cours'
         ]);
 
         return response()->json([
@@ -429,7 +495,7 @@ class ClientController extends Controller
         ];
 
         return view('client.order-history', [
-            'orders' => $orders, // Afficher TOUTES les commandes
+            'orders' => $orders,
             'tableNumber' => $user->table_number,
             'debug' => $debug
         ]);

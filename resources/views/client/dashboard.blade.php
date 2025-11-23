@@ -131,7 +131,7 @@
                     </div>
                 </div>
 
-                <!-- Menu Items - CORRIGÉ : Design amélioré pour les cartes -->
+                <!-- Menu Items -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
                     <template x-for="item in filteredMenu" :key="item.id">
                         <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 transform transition-all duration-300 hover:shadow-xl hover:-translate-y-2 relative overflow-hidden group flex flex-col h-full"
@@ -153,7 +153,7 @@
                                 </div>
                             </div>
                             
-                            <!-- CORRIGÉ : Section prix et bouton mieux organisée -->
+                            <!-- Section prix et bouton -->
                             <div class="relative z-10 mt-auto pt-4 border-t border-gray-100">
                                 <div class="flex justify-between items-center">
                                     <div class="flex items-center space-x-2">
@@ -175,7 +175,6 @@
                                             </span>
                                         </template>
                                         <template x-if="item.available">
-                                            <!-- CORRIGÉ : Bouton plus visible -->
                                             <button 
                                                 @click="addToCart(item)" 
                                                 class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center space-x-2 min-w-[120px] justify-center">
@@ -313,7 +312,7 @@
                                 </div>
                                 
                                 <div class="space-y-3">
-                                    <!-- CORRIGÉ : Boutons avec les bonnes fonctions -->
+                                    <!-- Boutons avec les bonnes fonctions -->
                                     <template x-if="isAddingToExistingOrder">
                                         <button @click="showAddToOrderConfirmationModal = true" 
                                                 class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
@@ -392,14 +391,27 @@
             </div>
         </template>
 
-        <!-- Modal de paiement pour nouvelle commande - CORRIGÉ -->
+        <!-- Modal de paiement pour nouvelle commande - MODIFIÉ avec sélection réseau -->
         <template x-if="showPaymentModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
                     <h3 class="text-2xl font-bold text-gray-800 mb-2">Paiement Mobile Money</h3>
-                    <p class="text-gray-600 mb-6">Entrez votre numéro de téléphone pour recevoir la demande de paiement</p>
+                    <p class="text-gray-600 mb-6">Choisissez votre réseau et entrez votre numéro</p>
                     
                     <div class="space-y-4">
+                        <!-- Sélection du réseau -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Réseau Mobile Money <span class="text-red-500">*</span>
+                            </label>
+                            <select x-model="selectedNetwork" 
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="mtn">MTN Money</option>
+                                <option value="moov">Moov Money</option>
+                                <option value="celtis">Celtis Money</option>
+                            </select>
+                        </div>
+                        
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Numéro de téléphone <span class="text-red-500">*</span>
@@ -424,20 +436,20 @@
                             Annuler
                         </button>
                         <button @click="placeOrder('sur_place')" 
-                                :disabled="!phoneNumber.trim() || isProcessingPayment"
-                                :class="!phoneNumber.trim() || isProcessingPayment ? 
+                                :disabled="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment"
+                                :class="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment ? 
                                     'bg-blue-400 cursor-not-allowed' : 
                                     'bg-blue-600 hover:bg-blue-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
                             <template x-if="isProcessingPayment">Traitement...</template>
-                            <template x-if="!isProcessingPayment">Payer</template>
+                            <template x-if="!isProcessingPayment">Confirmer</template>
                         </button>
                     </div>
                 </div>
             </div>
         </template>
 
-        <!-- CORRIGÉ : Modal de confirmation pour ajout à commande existante (variable corrigée) -->
+        <!-- Modal de confirmation pour ajout à commande existante -->
         <template x-if="showAddToOrderConfirmationModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
@@ -482,7 +494,7 @@
             </div>
         </template>
 
-        <!-- Modal de livraison - CORRIGÉ : Adresse obligatoire -->
+        <!-- Modal de livraison -->
         <template x-if="showDeliveryModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
@@ -562,6 +574,7 @@
             phoneNumber: '',
             deliveryAddress: '',
             deliveryNotes: '',
+            selectedNetwork: 'mtn', // NOUVEAU : Réseau par défaut
             isProcessingPayment: false,
             hasActiveOrder: @json($currentOrder !== null),
             currentOrder: @json($currentOrder),
@@ -663,9 +676,9 @@
 
                 try {
                     const response = await axios.post('{{ route("client.order.place") }}', {
-                        order_type: 'sur_place', // Toujours sur place pour les ajouts
+                        order_type: 'sur_place',
                         phone_number: this.phoneNumber,
-                        existing_order_id: this.currentOrderId // NOUVEAU : ID de commande existante
+                        existing_order_id: this.currentOrderId
                     });
 
                     if (response.data.success) {
@@ -701,15 +714,21 @@
             },
 
             async placeOrder(orderType) {
-                // CORRIGÉ : Validation renforcée pour la livraison
+                // Validation
                 if (!this.phoneNumber.trim()) {
                     this.showToast('Veuillez entrer votre numéro de téléphone', 'error');
                     return;
                 }
 
-                // 🔴 CORRECTION : Validation spécifique pour la livraison
+                // Validation pour la livraison
                 if (orderType === 'livraison' && !this.deliveryAddress.trim()) {
                     this.showToast('Veuillez entrer une adresse de livraison', 'error');
+                    return;
+                }
+
+                // Validation du réseau pour les commandes sur place
+                if (orderType === 'sur_place' && !this.selectedNetwork) {
+                    this.showToast('Veuillez sélectionner un réseau Mobile Money', 'error');
                     return;
                 }
 
@@ -718,7 +737,8 @@
                 try {
                     const requestData = {
                         order_type: orderType,
-                        phone_number: this.phoneNumber
+                        phone_number: this.phoneNumber,
+                        network: this.selectedNetwork // NOUVEAU : Ajout du réseau sélectionné
                     };
 
                     // Ajouter les informations de livraison si c'est une commande en livraison
@@ -748,7 +768,12 @@
                         
                         if (response.data.redirect_url) {
                             setTimeout(() => {
-                                window.location.href = response.data.redirect_url;
+                                // Pour les commandes sur place, rediriger vers la page USSD
+                                if (orderType === 'sur_place') {
+                                    window.location.href = '{{ url("client/order") }}/' + response.data.order_id + '/ussd?network=' + this.selectedNetwork;
+                                } else {
+                                    window.location.href = response.data.redirect_url;
+                                }
                             }, 1500);
                         }
                     } else {
