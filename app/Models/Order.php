@@ -19,9 +19,10 @@ class Order extends Model
         'status', // commandé, en_cours, prêt, terminé, livré
         'estimated_time',
         'total',
-        'delivery_address', // Assurez-vous que c'est présent
-        'delivery_notes',   // Et celui-ci aussi
+        'delivery_address',
+        'delivery_notes',
         'marked_ready_at',
+        'payment_status', // 🔥 ASSUREZ-VOUS QUE C'EST BIEN PRÉSENT
     ];
 
     protected $casts = [
@@ -34,9 +35,13 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
     /**
      * Vérifie si le client (table ou téléphone) a au moins une commande précédente terminée/livrée.
-     * Supporte les commandes "sur_place" (par table_number) et "emporter/livraison" (par customer_phone).
      */
     public function hasPreviousOrders(): bool
     {
@@ -60,11 +65,6 @@ class Order extends Model
 
     /**
      * Détecte s'il y a eu de réels ajouts d'articles pendant la commande en cours.
-     *
-     * Logique :
-     * - Si un order_item a été créé **après** la création de la commande (delta > 30s) => ajout.
-     * - OU si un item a été modifié (updated_at) après la création de la commande => ajout.
-     * - On évite de déclencher l'ajout pour la simple présence de 2 items créés en même temps que la commande.
      */
     public function hasRecentAdditions(int $secondsThreshold = 30): bool
     {
@@ -90,5 +90,21 @@ class Order extends Model
 
         // aucun item n'a de création/modif significative après la commande
         return false;
+    }
+
+    /**
+     * Scope pour les commandes payées
+     */
+    public function scopePaid($query)
+    {
+        return $query->where('payment_status', 'payé');
+    }
+
+    /**
+     * Scope pour les commandes en attente de paiement
+     */
+    public function scopePendingPayment($query)
+    {
+        return $query->where('payment_status', 'en_attente');
     }
 }

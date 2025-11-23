@@ -14,8 +14,8 @@ use App\Models\User;
 
 class AdminController extends Controller
 {
-    /**
-     * Afficher le tableau de bord administrateur
+        /**
+     * Afficher le tableau de bord administrateur - CORRIGÉ
      */
     public function dashboard()
     {
@@ -25,23 +25,28 @@ class AdminController extends Controller
         // CORRECTION : Récupérer seulement les tables des clients liés
         $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
         
-        // Statistiques - CORRECTION : Filtrer par tables liées
+        // 🔥 CORRECTION : TOUTES les requêtes filtrent par commandes payées
+        $todayOrdersQuery = Order::whereIn('table_number', $linkedClientTables)
+                                ->whereDate('created_at', $today)
+                                ->where('payment_status', 'payé'); // 🔥 AJOUT
+        
+        $allOrdersQuery = Order::whereIn('table_number', $linkedClientTables)
+                              ->where('payment_status', 'payé'); // 🔥 AJOUT
+        
+        // Statistiques - UNIQUEMENT les commandes payées
         $stats = [
-            'todayOrders' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereDate('created_at', $today)->count(),
-            'pendingOrders' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereIn('status', ['commandé', 'en_cours'])->count(),
-            'todayRevenue' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereDate('created_at', $today)->sum('total'),
-            'activeTables' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereIn('status', ['commandé', 'en_cours', 'prêt'])
+            'todayOrders' => $todayOrdersQuery->count(),
+            'pendingOrders' => $allOrdersQuery->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'todayRevenue' => $todayOrdersQuery->sum('total'),
+            'activeTables' => $allOrdersQuery->whereIn('status', ['commandé', 'en_cours', 'prêt'])
                                 ->distinct('table_number')
                                 ->count('table_number'),
         ];
 
-        // Commandes récentes - CORRECTION : Filtrer par tables liées
+        // Commandes récentes - UNIQUEMENT les commandes payées
         $recentOrders = Order::with('items')
                            ->whereIn('table_number', $linkedClientTables)
+                           ->where('payment_status', 'payé') // 🔥 AJOUT
                            ->orderBy('created_at', 'desc')
                            ->limit(5)
                            ->get();
@@ -50,18 +55,18 @@ class AdminController extends Controller
     }
 
     /**
-     * Gestion des commandes (version complète)
+     * Gestion des commandes (version complète) - CORRIGÉ
      */
     public function orders(Request $request)
     {
         $status = $request->get('status', 'pending');
         $admin = Auth::user();
         
-        // CORRECTION : Récupérer seulement les tables des clients liés
         $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
         
         $query = Order::with('items')
-                    ->whereIn('table_number', $linkedClientTables);
+                    ->whereIn('table_number', $linkedClientTables)
+                    ->where('payment_status', 'payé'); // 🔥 AJOUT
         
         switch ($status) {
             case 'pending':
@@ -77,58 +82,65 @@ class AdminController extends Controller
         
         $orders = $query->orderBy('created_at', 'desc')->get();
         
+        // CORRECTION : Les compteurs doivent aussi filtrer par commandes payées
         $orderCounts = [
             'pending' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé') // 🔥 AJOUT
                             ->whereIn('status', ['commandé', 'en_cours'])->count(),
             'ready' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé') // 🔥 AJOUT
                             ->where('status', 'prêt')->count(),
             'completed' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé') // 🔥 AJOUT
                             ->whereIn('status', ['livré', 'terminé'])->count(),
         ];
 
         return view('admin.orders', compact('orders', 'status', 'orderCounts'));
     }
 
-/**
- * Gestion des commandes (version AJAX pour le dashboard)
- */
-public function ordersAjax(Request $request)
-{
-    $status = $request->get('status', 'pending');
-    $admin = Auth::user();
-    
-    // Récupérer seulement les tables des clients liés
-    $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
-    
-    // Version simple : charger tous les champs
-    $query = Order::with('items.menuItem')
-                ->whereIn('table_number', $linkedClientTables);
-    
-    switch ($status) {
-        case 'pending':
-            $query->whereIn('status', ['commandé', 'en_cours']);
-            break;
-        case 'ready':
-            $query->where('status', 'prêt');
-            break;
-        case 'completed':
-            $query->whereIn('status', ['livré', 'terminé']);
-            break;
+    /**
+     * Gestion des commandes (version AJAX) - CORRIGÉ
+     */
+    public function ordersAjax(Request $request)
+    {
+        $status = $request->get('status', 'pending');
+        $admin = Auth::user();
+        
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+        
+        $query = Order::with('items.menuItem')
+                    ->whereIn('table_number', $linkedClientTables)
+                    ->where('payment_status', 'payé'); // 🔥 DÉJÀ PRÉSENT
+        
+        switch ($status) {
+            case 'pending':
+                $query->whereIn('status', ['commandé', 'en_cours']);
+                break;
+            case 'ready':
+                $query->where('status', 'prêt');
+                break;
+            case 'completed':
+                $query->whereIn('status', ['livré', 'terminé']);
+                break;
+        }
+        
+        $orders = $query->orderBy('created_at', 'desc')->get();
+
+        // Les compteurs doivent aussi refléter seulement les commandes payées
+        $orderCounts = [
+            'pending' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé')
+                            ->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'ready' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé')
+                            ->where('status', 'prêt')->count(),
+            'completed' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé')
+                            ->whereIn('status', ['livré', 'terminé'])->count(),
+        ];
+
+        return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
     }
-    
-    $orders = $query->orderBy('created_at', 'desc')->get();
-
-    $orderCounts = [
-        'pending' => Order::whereIn('table_number', $linkedClientTables)
-                        ->whereIn('status', ['commandé', 'en_cours'])->count(),
-        'ready' => Order::whereIn('table_number', $linkedClientTables)
-                        ->where('status', 'prêt')->count(),
-        'completed' => Order::whereIn('table_number', $linkedClientTables)
-                        ->whereIn('status', ['livré', 'terminé'])->count(),
-    ];
-
-    return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
-}
 
     /**
      * Afficher les détails d'une commande (CORRIGÉ)

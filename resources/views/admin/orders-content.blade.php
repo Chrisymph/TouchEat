@@ -43,6 +43,7 @@
                 @elseif($status === 'ready') Aucune commande prête
                 @else Aucune commande terminée aujourd'hui @endif
             </h3>
+            <p class="text-gray-500">Seules les commandes payées sont affichées ici</p>
         </div>
     @else
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -64,6 +65,10 @@
                                         @endif
                                         • {{ $order->created_at->format('H:i') }}
                                     </p>
+                                    <!-- CORRECTION : Afficher le statut de paiement -->
+                                    <p class="text-xs mt-1 {{ $order->payment_status === 'payé' ? 'text-green-600' : 'text-yellow-600' }}">
+                                        Paiement: {{ $order->payment_status === 'payé' ? '✅ Payé' : '⏳ En attente' }}
+                                    </p>
                                 </div>
                                 <span class="px-2 py-1 rounded-full text-xs font-semibold
                                     @if($order->status === 'commandé') bg-yellow-100 text-yellow-800
@@ -74,7 +79,7 @@
                                 </span>
                             </div>
 
-                            <!-- AFFICHAGE DE L'ADRESSE DE LIVRAISON - VERSION CORRIGÉE -->
+                            <!-- AFFICHAGE DE L'ADRESSE DE LIVRAISON -->
                             @if($order->order_type === 'livraison')
                                 <div class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                                     <div class="flex items-start space-x-2">
@@ -233,51 +238,6 @@ async function printReceipt(orderId) {
     }
 }
 
-// Fonction pour ajouter du temps via prompt
-function openAddTimePrompt(orderId, currentTime, button) {
-    const minutesStr = prompt("Combien de minutes supplémentaires voulez-vous ajouter ?", "10");
-    if (minutesStr === null) return;
-    const minutes = parseInt(minutesStr, 10);
-    if (isNaN(minutes) || minutes <= 0) {
-        alert("Veuillez entrer un nombre valide.");
-        return;
-    }
-
-    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    button.disabled = true;
-    button.textContent = "Ajout en cours...";
-
-    fetch(`/admin/orders/${orderId}/add-time`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-TOKEN": token
-        },
-        body: JSON.stringify({ additional_time: minutes })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showToast('⏱️ ' + data.message, 'success');
-            // Recharger les commandes
-            if (window.dashboardComponent) {
-                const currentStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
-                window.dashboardComponent.loadOrders(currentStatus);
-            }
-        } else {
-            showToast('❌ ' + data.message, 'error');
-        }
-    })
-    .catch(err => {
-        console.error('Erreur:', err);
-        showToast('❌ Erreur réseau ou serveur', 'error');
-    })
-    .finally(() => {
-        button.disabled = false;
-        button.textContent = "⏱️ Ajouter du temps";
-    });
-}
-
 // Délégation d'événements
 document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
@@ -312,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             const orderId = e.target.getAttribute('data-order-id');
             const currentTime = e.target.getAttribute('data-current-time');
-            openAddTimePrompt(orderId, currentTime, e.target);
+            openAddTimeModal(orderId, parseInt(currentTime));
         }
 
         // 🔹 IMPRIMER REÇU

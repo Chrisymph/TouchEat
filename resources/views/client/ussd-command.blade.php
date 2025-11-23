@@ -19,7 +19,7 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <!-- Header (identique) -->
+    <!-- Header -->
     <div class="gradient-bg text-white">
         <div class="container mx-auto px-4 py-6">
             <div class="flex justify-between items-center">
@@ -42,7 +42,7 @@
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-8">
         <div class="max-w-2xl mx-auto">
-            <!-- Carte de confirmation (identique) -->
+            <!-- Carte de confirmation -->
             <div class="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-green-200">
                 <div class="text-center mb-6">
                     <div class="text-6xl mb-4">✅</div>
@@ -70,7 +70,7 @@
                         @elseif($selectedNetwork === 'moov')
                             Moov Money
                         @else
-                            Celtis Money
+                            Orange Money
                         @endif
                     </span>
                 </h3>
@@ -97,7 +97,7 @@
                 </div>
             </div>
 
-            <!-- Instructions étape par étape (identique) -->
+            <!-- Instructions étape par étape -->
             <div class="bg-white rounded-2xl shadow-lg p-8">
                 <h4 class="text-xl font-bold text-gray-800 mb-4">Comment procéder :</h4>
                 <div class="space-y-4">
@@ -120,12 +120,19 @@
                 </div>
             </div>
 
-            <!-- Retour à l'accueil (identique) -->
-            <div class="text-center mt-8">
-                <a href="{{ route('client.dashboard') }}" 
-                   class="inline-block bg-gray-600 hover:bg-gray-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300">
-                    ← Retour à l'accueil
+            <!-- Bouton pour saisir l'ID de transaction -->
+            <div class="text-center mt-8 space-y-4">
+                <a href="{{ route('client.payment.form', $order->id) }}" 
+                   class="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                    ✅ J'ai payé - Saisir l'ID de Transaction
                 </a>
+                
+                <div>
+                    <a href="{{ route('client.dashboard') }}" 
+                       class="inline-block bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300">
+                        ← Retour à l'accueil
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -182,7 +189,7 @@
             }
         });
 
-        // Fonction pour copier le code USSD (identique)
+        // Fonction pour copier le code USSD
         function copyUssdCode() {
             const ussdCommand = "{{ $ussdCommand }}";
             
