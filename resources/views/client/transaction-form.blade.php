@@ -22,8 +22,8 @@
         <div class="max-w-md mx-auto">
             <!-- Carte de confirmation -->
             <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">✅ Paiement Effectué</h2>
-                <p class="text-gray-600 mb-4">Veuillez saisir les informations de votre transaction :</p>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">✅ Vérification de Paiement</h2>
+                <p class="text-gray-600 mb-4">Veuillez saisir les informations exactes de votre transaction :</p>
                 
                 <form id="transactionForm">
                     @csrf
@@ -36,7 +36,7 @@
                             </label>
                             <select name="network" required
                                     class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">Choisissez...</option>
+                                <option value="">Choisissez votre réseau...</option>
                                 <option value="mtn">MTN Money</option>
                                 <option value="moov">Moov Money</option>
                                 <option value="orange">Orange Money</option>
@@ -46,11 +46,12 @@
                         <!-- Téléphone -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Numéro utilisé *
+                                Numéro utilisé pour le paiement *
                             </label>
                             <input type="tel" name="phone_number" required
                                    placeholder="ex: 07 12 34 56 78"
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <p class="text-xs text-gray-500 mt-1">Doit correspondre au numéro utilisé pour le paiement</p>
                         </div>
 
                         <!-- ID Transaction -->
@@ -62,8 +63,24 @@
                                    placeholder="Ex: TX123456ABC"
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <p class="text-sm text-gray-500 mt-1">
-                                Trouvez cet ID dans le SMS de confirmation
+                                Trouvez cet ID dans le SMS de confirmation reçu
                             </p>
+                        </div>
+                    </div>
+
+                    <!-- Message d'information important -->
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                        <div class="flex items-start">
+                            <div class="text-yellow-600 mr-2">⚠️</div>
+                            <div class="text-sm text-yellow-700">
+                                <strong>Important :</strong> La vérification échouera si :
+                                <ul class="list-disc list-inside mt-1 space-y-1">
+                                    <li>L'ID de transaction est incorrect</li>
+                                    <li>Le SMS de confirmation n'est pas encore arrivé</li>
+                                    <li>Le montant ne correspond pas</li>
+                                    <li>Le numéro de téléphone est différent</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
 
@@ -74,7 +91,7 @@
                         </a>
                         <button type="submit" 
                                 class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors">
-                            Confirmer
+                            Vérifier le Paiement
                         </button>
                     </div>
                 </form>
@@ -87,6 +104,7 @@
                     <li>• Dans le SMS de confirmation de paiement</li>
                     <li>• Cherchez un code comme <strong>TX123456</strong> ou <strong>REF789ABC</strong></li>
                     <li>• Généralement 8-12 caractères (chiffres et lettres)</li>
+                    <li>• <strong>Attendez que le SMS arrive</strong> avant de saisir</li>
                 </ul>
             </div>
         </div>
@@ -100,36 +118,52 @@
             const submitButton = this.querySelector('button[type="submit"]');
             const originalText = submitButton.textContent;
             
-            submitButton.textContent = 'Traitement...';
+            submitButton.textContent = 'Vérification en cours...';
             submitButton.disabled = true;
 
             try {
                 const response = await fetch('{{ route("client.payment.process", $order->id) }}', {
                     method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
                     body: formData
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    if (data.auto_verified) {
-                        alert('✅ Paiement vérifié! Votre commande est en préparation.');
-                    } else {
-                        alert('⏳ Paiement enregistré! Vérification en cours...');
-                    }
-                    
-                    window.location.href = data.redirect_url;
+                    // Succès
+                    showMessage('✅ ' + data.message, 'success');
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url;
+                    }, 2000);
                 } else {
-                    alert('❌ ' + data.message);
+                    // Échec
+                    showMessage('❌ ' + data.message, 'error');
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('❌ Erreur lors du traitement');
+                showMessage('❌ Erreur lors de la vérification', 'error');
             } finally {
                 submitButton.textContent = originalText;
                 submitButton.disabled = false;
             }
         });
+
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
+                type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            }`;
+            messageDiv.textContent = message;
+            document.body.appendChild(messageDiv);
+
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
     </script>
 </body>
 </html>

@@ -8,6 +8,7 @@ use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\SMSTransaction;
 
 class ClientController extends Controller
 {
@@ -58,7 +59,7 @@ class ClientController extends Controller
         $request->validate([
             'menu_item_id' => 'required|exists:menu_items,id',
             'quantity' => 'required|integer|min:1',
-            'order_id' => 'nullable|exists:orders,id' // NOUVEAU : ID de commande existante
+            'order_id' => 'nullable|exists:orders,id'
         ]);
 
         $cart = session()->get('cart', []);
@@ -76,7 +77,7 @@ class ClientController extends Controller
                 'category' => $menuItem->category,
                 'promotion_discount' => $menuItem->promotion_discount,
                 'original_price' => $menuItem->original_price,
-                'order_id' => $request->order_id // NOUVEAU : Stocker l'ID de commande
+                'order_id' => $request->order_id
             ];
         }
 
@@ -88,7 +89,7 @@ class ClientController extends Controller
             'success' => true,
             'cart_count' => $cartCount,
             'cart_items' => array_values($cart),
-            'has_existing_order' => !empty($request->order_id) // NOUVEAU
+            'has_existing_order' => !empty($request->order_id)
         ]);
     }
 
@@ -145,11 +146,10 @@ class ClientController extends Controller
             ], 403);
         }
 
-        // CORRECTION : Rendre l'adresse obligatoire pour la livraison
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
             'phone_number' => 'required|string',
-            'network' => 'required_if:order_type,sur_place|in:mtn,moov,orange', // NOUVEAU : Validation du réseau
+            'network' => 'required_if:order_type,sur_place|in:mtn,moov,orange',
             'existing_order_id' => 'nullable|exists:orders,id',
             'delivery_address' => 'required_if:order_type,livraison|string|max:255',
             'delivery_notes' => 'nullable|string|max:500'
@@ -174,7 +174,7 @@ class ClientController extends Controller
             session()->put('selected_network', $request->network);
         }
 
-        // NOUVEAU : Vérifier si on ajoute à une commande existante
+        // Vérifier si on ajoute à une commande existante
         if ($request->has('existing_order_id') && $request->existing_order_id) {
             $order = Order::where('id', $request->existing_order_id)
                 ->where('table_number', Auth::user()->table_number)
@@ -221,12 +221,12 @@ class ClientController extends Controller
                 'redirect_url' => route('client.order.confirmation', $order->id)
             ]);
         } else {
-            // CORRECTION : Créer une nouvelle commande avec le bon statut de paiement
+            // Créer une nouvelle commande avec le bon statut de paiement
             $order = Order::create([
                 'table_number' => Auth::user()->table_number,
                 'total' => $total,
                 'status' => 'commandé',
-                'payment_status' => 'en_attente', // CORRECTION : "en_attente" au lieu de "non_payé"
+                'payment_status' => 'en_attente',
                 'order_type' => $request->order_type,
                 'customer_phone' => $request->phone_number,
                 'estimated_time' => null,
@@ -307,7 +307,7 @@ class ClientController extends Controller
                 return "*855*1*1*0158187101*0158187101*{$totalAmount}*1#";
             
             case 'mtn':
-                return "*880*1*1*0166110299*0166110299*{$totalAmount}#";
+                return "*880*1*1*0154649143*0154649143*{$totalAmount}#";
             
             case 'orange':
                 return "*855*1*1*0158187101*0158187101*{$totalAmount}*1#";
@@ -344,7 +344,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Traiter la soumission de l'ID de transaction
+     * Traiter la soumission de l'ID de transaction - VERSION SÉCURISÉE
      */
     public function processTransaction(Request $request, $orderId)
     {
@@ -373,7 +373,79 @@ class ClientController extends Controller
                      ->where('table_number', Auth::user()->table_number)
                      ->firstOrFail();
 
+        // Vérifier si la commande est déjà payée
+        if ($order->payment_status === 'payé') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette commande a déjà été payée.'
+            ], 400);
+        }
+
         try {
+            // VÉRIFICATION RÉELLE - Rechercher la transaction dans la base SMS
+            $smsTransaction = SMSTransaction::where('transaction_id', $request->transaction_id)
+                ->where('network', $request->network)
+                ->where('status', 'pending')
+                ->where('sms_received_at', '>=', now()->subHours(24))
+                ->first();
+
+            if (!$smsTransaction) {
+                \Log::warning("Transaction SMS non trouvée", [
+                    'transaction_id' => $request->transaction_id,
+                    'network' => $request->network,
+                    'order_id' => $orderId
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction non trouvée. Vérifiez l\'ID de transaction ou attendez que le SMS de confirmation arrive.'
+                ], 404);
+            }
+
+            // Vérifier que le montant correspond
+            if (abs($smsTransaction->amount - $order->total) > 1) {
+                \Log::warning("Montant ne correspond pas", [
+                    'sms_amount' => $smsTransaction->amount,
+                    'order_total' => $order->total,
+                    'transaction_id' => $request->transaction_id
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le montant de la transaction (' . number_format($smsTransaction->amount, 0, ',', ' ') . ' FCFA) ne correspond pas au total de la commande (' . number_format($order->total, 0, ',', ' ') . ' FCFA)'
+                ], 400);
+            }
+
+            // Vérifier que le numéro correspond
+            $cleanedPhone = $this->cleanPhoneNumber($request->phone_number);
+            $cleanedSender = $this->cleanPhoneNumber($smsTransaction->sender_number);
+            
+            if ($cleanedPhone !== $cleanedSender) {
+                \Log::warning("Numéro téléphone ne correspond pas", [
+                    'provided_phone' => $cleanedPhone,
+                    'sms_sender' => $cleanedSender,
+                    'transaction_id' => $request->transaction_id
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le numéro de téléphone ne correspond pas à l\'expéditeur du paiement.'
+                ], 400);
+            }
+
+            // Vérifier que la transaction n'est pas déjà utilisée
+            $existingPayment = Payment::where('transaction_id', $request->transaction_id)
+                ->where('network', $request->network)
+                ->where('status', 'verified')
+                ->first();
+
+            if ($existingPayment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette transaction a déjà été utilisée pour une autre commande.'
+                ], 400);
+            }
+
             // Créer le paiement
             $payment = Payment::create([
                 'order_id' => $order->id,
@@ -382,40 +454,41 @@ class ClientController extends Controller
                 'transaction_id' => $request->transaction_id,
                 'network' => $request->network,
                 'phone_number' => $request->phone_number,
-                'status' => 'pending'
+                'status' => 'verified',
+                'verified_at' => now()
             ]);
 
-            // Tentative de vérification automatique
-            $autoVerified = $this->attemptAutoVerification($payment);
+            // Marquer la transaction SMS comme utilisée
+            $smsTransaction->update([
+                'status' => 'used',
+                'order_id' => $order->id,
+                'verified_at' => now()
+            ]);
 
-            if ($autoVerified) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Paiement vérifié automatiquement! Votre commande est en cours de préparation.',
-                    'auto_verified' => true,
-                    'redirect_url' => route('client.order.confirmation', $order->id)
-                ]);
-            } else {
-                // CORRECTION : Même si la vérification automatique échoue, on marque quand même comme payé
-                // pour les besoins de démonstration
-                $payment->update([
-                    'status' => 'verified',
-                    'verified_at' => now()
-                ]);
+            // Mettre à jour le statut de la commande
+            $order->update(['payment_status' => 'payé']);
 
-                // CORRECTION : Mettre à jour le statut de la commande
-                $order->update(['payment_status' => 'payé']);
+            \Log::info("✅ Paiement vérifié avec succès", [
+                'order_id' => $order->id,
+                'transaction_id' => $request->transaction_id,
+                'sms_transaction_id' => $smsTransaction->id,
+                'amount' => $order->total
+            ]);
 
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Paiement enregistré et vérifié! Votre commande est en cours de préparation.',
-                    'auto_verified' => true, // CORRECTION : Toujours true pour le moment
-                    'redirect_url' => route('client.order.confirmation', $order->id)
-                ]);
-            }
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement vérifié avec succès! Votre commande est en cours de préparation.',
+                'auto_verified' => true,
+                'redirect_url' => route('client.order.confirmation', $order->id)
+            ]);
 
         } catch (\Exception $e) {
-            \Log::error('Erreur processTransaction:', ['error' => $e->getMessage(), 'order_id' => $orderId]);
+            \Log::error('Erreur processTransaction:', [
+                'error' => $e->getMessage(), 
+                'order_id' => $orderId,
+                'transaction_id' => $request->transaction_id ?? 'N/A'
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du traitement du paiement: ' . $e->getMessage()
@@ -424,78 +497,294 @@ class ClientController extends Controller
     }
 
     /**
-     * Vérification automatique simplifiée - CORRIGÉE
+     * Nettoyer le numéro de téléphone pour comparaison
      */
-    private function attemptAutoVerification($payment)
+    private function cleanPhoneNumber($phone)
     {
+        // Supprimer tous les caractères non numériques
+        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Si le numéro a 10 chiffres et commence par 225, prendre les 9 derniers
+        if (strlen($cleaned) === 10 && substr($cleaned, 0, 3) === '225') {
+            $cleaned = substr($cleaned, 3);
+        }
+        
+        // Si le numéro a 9 chiffres, c'est bon
+        if (strlen($cleaned) === 9) {
+            return $cleaned;
+        }
+        
+        // Si le numéro a 8 chiffres, ajouter le 0
+        if (strlen($cleaned) === 8) {
+            return '0' . $cleaned;
+        }
+        
+        return $cleaned;
+    }
+
+    /**
+     * Webhook pour recevoir les SMS de paiement
+     */
+    public function receiveSMSWebhook(Request $request)
+    {
+        \Log::info('Webhook SMS reçu:', $request->all());
+
         try {
-            // 1. Validation basique du format
-            if (!$this->isValidTransactionIdFormat($payment->transaction_id)) {
-                \Log::info("Échec validation format ID: {$payment->transaction_id}");
-                return false;
+            $data = $request->all();
+            
+            // Validation des données requises
+            if (empty($data['from']) || empty($data['text'])) {
+                \Log::warning('Webhook SMS: Données manquantes', $data);
+                return response()->json(['error' => 'Données manquantes'], 400);
             }
 
-            // 2. Vérification du montant
-            if (!$this->isAmountMatching($payment->amount, $payment->order->total)) {
-                \Log::info("Échec validation montant: {$payment->amount} vs {$payment->order->total}");
-                return false;
-            }
+            // Extraire les informations du SMS
+            $senderNumber = $data['from'];
+            $message = $data['text'];
+            $receivedAt = now();
 
-            // 3. Vérification des doublons
-            if ($this->isTransactionIdDuplicate($payment->transaction_id, $payment->network, $payment->id)) {
-                \Log::info("Échec validation doublon: {$payment->transaction_id}");
-                return false;
-            }
-
-            // Si toutes les vérifications passent, marquer comme vérifié
-            $payment->update([
-                'status' => 'verified',
-                'verified_at' => now()
+            \Log::info('Analyse du SMS:', [
+                'sender' => $senderNumber,
+                'message' => $message
             ]);
 
-            // CORRECTION : Mettre à jour le statut de la commande avec la bonne valeur
-            $payment->order->update(['payment_status' => 'payé']);
+            // Analyser le message pour détecter un paiement
+            $transactionData = $this->parsePaymentSMS($message, $senderNumber);
+            
+            if ($transactionData) {
+                \Log::info('Transaction détectée:', $transactionData);
 
-            \Log::info("✅ Paiement vérifié automatiquement: {$payment->transaction_id} pour commande #{$payment->order->id}");
-            return true;
+                // Créer ou mettre à jour la transaction SMS
+                $smsTransaction = SMSTransaction::updateOrCreate(
+                    [
+                        'transaction_id' => $transactionData['transaction_id'],
+                        'network' => $transactionData['network']
+                    ],
+                    [
+                        'sender_number' => $senderNumber,
+                        'receiver_number' => $transactionData['receiver_number'] ?? 'N/A',
+                        'amount' => $transactionData['amount'],
+                        'message' => $message,
+                        'sms_received_at' => $receivedAt,
+                        'status' => 'pending'
+                    ]
+                );
+
+                \Log::info("Transaction SMS enregistrée: {$smsTransaction->id}");
+
+                // Tenter d'associer automatiquement à une commande
+                $autoAssociated = $this->attemptAutoAssociation($smsTransaction);
+
+                if ($autoAssociated) {
+                    \Log::info("Transaction auto-associée à la commande: {$smsTransaction->order_id}");
+                }
+
+                return response()->json([
+                    'success' => true, 
+                    'transaction_id' => $smsTransaction->id,
+                    'auto_associated' => $autoAssociated
+                ]);
+            }
+
+            \Log::info('Aucune transaction détectée dans le SMS');
+            return response()->json(['success' => false, 'message' => 'Aucune transaction détectée']);
 
         } catch (\Exception $e) {
-            \Log::error('Erreur attemptAutoVerification:', ['error' => $e->getMessage(), 'payment_id' => $payment->id]);
+            \Log::error('Erreur webhook SMS:', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Erreur interne'], 500);
+        }
+    }
+
+    /**
+     * Analyser le SMS pour détecter un paiement
+     */
+    private function parsePaymentSMS($message, $senderNumber)
+    {
+        // Nettoyer le message
+        $message = trim($message);
+        $lowerMessage = strtolower($message);
+        
+        // Détecter le réseau
+        $network = $this->detectNetwork($lowerMessage, $senderNumber);
+        
+        if (!$network) {
+            \Log::info('Réseau non détecté dans le SMS');
+            return null;
+        }
+
+        \Log::info("Réseau détecté: {$network}");
+
+        // Patterns pour extraire les informations selon le réseau
+        switch ($network) {
+            case 'mtn':
+                return $this->parseMTNSMS($message);
+            case 'moov':
+                return $this->parseMoovSMS($message);
+            case 'orange':
+                return $this->parseOrangeSMS($message);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Détecter le réseau à partir du message ou du numéro
+     */
+    private function detectNetwork($message, $senderNumber)
+    {
+        if (strpos($message, 'mtn') !== false || preg_match('/\b(mtn|mobile money)\b/i', $message)) {
+            return 'mtn';
+        }
+        
+        if (strpos($message, 'moov') !== false || preg_match('/\b(moov|flooz)\b/i', $message)) {
+            return 'moov';
+        }
+        
+        if (strpos($message, 'orange') !== false || preg_match('/\b(orange money)\b/i', $message)) {
+            return 'orange';
+        }
+        
+        // Détection par préfixe du numéro
+        $prefix = substr($senderNumber, 0, 3);
+        if (in_array($prefix, ['055', '054', '053', '055', '054', '053'])) {
+            return 'mtn';
+        } elseif (in_array($prefix, ['057', '058'])) {
+            return 'moov';
+        } elseif (in_array($prefix, ['077', '078', '077', '078'])) {
+            return 'orange';
+        }
+        
+        return null;
+    }
+
+    /**
+     * Parser les SMS MTN Money
+     */
+    private function parseMTNSMS($message)
+    {
+        // Pattern pour MTN Money - Vous avez reçu X FCFA de Y. Ref: Z
+        if (preg_match('/Vous avez reçu (\d+(?:[.,]\d+)?)\s*FCFA de (\d+).*?Ref\.? :?\s*([A-Z0-9]+)/i', $message, $matches)) {
+            $amount = floatval(str_replace(',', '.', $matches[1]));
+            return [
+                'transaction_id' => trim($matches[3]),
+                'amount' => $amount,
+                'network' => 'mtn',
+                'receiver_number' => $matches[2]
+            ];
+        }
+        
+        // Autre pattern MTN - Transaction ID: X Montant: Y FCFA
+        if (preg_match('/Transaction ID:?\s*([A-Z0-9]+).*?Montant:?\s*(\d+(?:[.,]\d+)?)\s*FCFA/i', $message, $matches)) {
+            $amount = floatval(str_replace(',', '.', $matches[2]));
+            return [
+                'transaction_id' => trim($matches[1]),
+                'amount' => $amount,
+                'network' => 'mtn'
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Parser les SMS Moov Money
+     */
+    private function parseMoovSMS($message)
+    {
+        // Pattern pour Moov Money - Vous avez reçu X FCFA. Ref: Y
+        if (preg_match('/Vous avez reçu (\d+(?:[.,]\d+)?)\s*FCFA.*?Ref:?\s*([A-Z0-9]+)/i', $message, $matches)) {
+            $amount = floatval(str_replace(',', '.', $matches[1]));
+            return [
+                'transaction_id' => trim($matches[2]),
+                'amount' => $amount,
+                'network' => 'moov'
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Parser les SMS Orange Money
+     */
+    private function parseOrangeSMS($message)
+    {
+        // Pattern pour Orange Money - Transaction: X Montant: Y FCFA
+        if (preg_match('/Transaction:?\s*([A-Z0-9]+).*?Montant:?\s*(\d+(?:[.,]\d+)?)\s*FCFA/i', $message, $matches)) {
+            $amount = floatval(str_replace(',', '.', $matches[2]));
+            return [
+                'transaction_id' => trim($matches[1]),
+                'amount' => $amount,
+                'network' => 'orange'
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Tenter d'associer automatiquement une transaction à une commande
+     */
+    private function attemptAutoAssociation(SMSTransaction $smsTransaction)
+    {
+        try {
+            // Chercher une commande avec le même montant et statut de paiement en attente
+            $order = Order::where('total', $smsTransaction->amount)
+                         ->where('payment_status', 'en_attente')
+                         ->where('created_at', '>=', now()->subHours(2))
+                         ->first();
+
+            if ($order) {
+                // Vérifier que la transaction n'est pas déjà utilisée
+                $existingPayment = Payment::where('transaction_id', $smsTransaction->transaction_id)
+                    ->where('network', $smsTransaction->network)
+                    ->where('status', 'verified')
+                    ->first();
+
+                if ($existingPayment) {
+                    \Log::warning("Transaction déjà utilisée", [
+                        'transaction_id' => $smsTransaction->transaction_id,
+                        'existing_order_id' => $existingPayment->order_id
+                    ]);
+                    return false;
+                }
+
+                // Associer la transaction à la commande
+                $smsTransaction->update([
+                    'order_id' => $order->id,
+                    'status' => 'used',
+                    'verified_at' => now()
+                ]);
+
+                // Créer un enregistrement de paiement
+                Payment::create([
+                    'order_id' => $order->id,
+                    'amount' => $smsTransaction->amount,
+                    'payment_method' => 'mobile_money',
+                    'transaction_id' => $smsTransaction->transaction_id,
+                    'network' => $smsTransaction->network,
+                    'phone_number' => $smsTransaction->sender_number,
+                    'status' => 'verified',
+                    'verified_at' => now()
+                ]);
+
+                // Mettre à jour le statut de paiement de la commande
+                $order->update([
+                    'payment_status' => 'payé'
+                ]);
+
+                \Log::info("✅ Transaction #{$smsTransaction->id} associée automatiquement à la commande #{$order->id}");
+                
+                return true;
+            }
+            
+            \Log::info("Aucune commande trouvée pour le montant: {$smsTransaction->amount}");
+            return false;
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur association automatique:', ['error' => $e->getMessage()]);
             return false;
         }
-    }
-
-    /**
-     * Validation du format de l'ID de transaction
-     */
-    private function isValidTransactionIdFormat($transactionId)
-    {
-        // Format général: mélange de chiffres et lettres, longueur 6-20 caractères
-        return preg_match('/^[A-Z0-9]{6,20}$/i', $transactionId);
-    }
-
-    /**
-     * Vérification du montant
-     */
-    private function isAmountMatching($paymentAmount, $orderAmount)
-    {
-        return abs($paymentAmount - $orderAmount) < 0.01;
-    }
-
-    /**
-     * Vérification des doublons
-     */
-    private function isTransactionIdDuplicate($transactionId, $network, $paymentId = null)
-    {
-        $query = Payment::where('transaction_id', $transactionId)
-            ->where('network', $network)
-            ->where('status', 'verified');
-
-        if ($paymentId) {
-            $query->where('id', '!=', $paymentId);
-        }
-
-        return $query->exists();
     }
 
     /**
@@ -596,7 +885,7 @@ class ClientController extends Controller
             'status' => $order->status,
             'estimated_time' => $order->estimated_time,
             'marked_ready_at' => $order->marked_ready_at,
-            'payment_status' => $order->payment_status // CORRECTION : Ajouter le statut de paiement
+            'payment_status' => $order->payment_status
         ]);
     }
 

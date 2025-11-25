@@ -10,7 +10,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Route home (redirection générale après connexion)
 Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
 
 // Routes d'authentification client
@@ -30,17 +29,10 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/orders', [AdminController::class, 'orders'])->name('admin.orders');
     Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax');
     Route::put('/orders/{id}/status', [AdminController::class, 'updateOrderStatus'])->name('admin.orders.status');
-    
-    // ROUTES CORRIGÉES POUR LES DÉTAILS DE COMMANDE
     Route::get('/orders/{id}', [AdminController::class, 'showOrder'])->name('admin.orders.show');
     Route::get('/orders/{id}/ajax', [AdminController::class, 'showOrder'])->name('admin.orders.ajax.details');
-    
-    // NOUVELLE ROUTE POUR L'AJOUT DE TEMPS - CORRECTION
     Route::post('/orders/{id}/add-time', [AdminController::class, 'addTimeToOrder'])->name('admin.orders.add-time');
-    
     Route::post('/orders/{id}/status-ajax', [AdminController::class, 'updateOrderStatusAjax'])->name('admin.orders.status.ajax');
-
-    // Routes pour l'impression des reçus
     Route::get('/orders/{id}/receipt', [AdminController::class, 'generateReceipt'])->name('admin.orders.receipt');
     Route::get('/orders/{id}/print', [AdminController::class, 'printReceipt'])->name('admin.orders.print');
     
@@ -67,10 +59,11 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/reports/ajax', [AdminController::class, 'reportsAjax'])->name('admin.reports.ajax');
     Route::get('/reports/chart-data', [AdminController::class, 'reportsChartData'])->name('admin.reports.chart');
     Route::post('/reports/save', [AdminController::class, 'saveReport'])->name('admin.reports.save');
-    
-    // NOUVELLE ROUTE POUR LE RAPPORT PAR DATE
     Route::post('/reports/generate-date-report', [AdminController::class, 'generateDateReport'])->name('admin.reports.generate-date');
     Route::post('/reports/download-date-report', [AdminController::class, 'downloadDateReport'])->name('admin.reports.download-date');
+    
+    // NOUVELLE ROUTE POUR LES TRANSACTIONS SMS
+    Route::get('/sms-transactions', [AdminController::class, 'smsTransactions'])->name('admin.sms.transactions');
     
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
@@ -88,13 +81,14 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     // Routes pour le paiement USSD
     Route::get('/order/{id}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd');
     
-    // 🔥 NOUVELLES ROUTES POUR LE SYSTÈME DE PAIEMENT
+    // Routes pour le paiement avec vérification SMS
     Route::get('/order/{id}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form');
     Route::post('/order/{id}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process');
     
-    // NOUVELLE ROUTE POUR LA LIVRAISON
-    Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
+    // NOUVELLE ROUTE WEBHOOK POUR TRACCAR SMS GATEWAY
+    Route::post('/sms-webhook', [ClientController::class, 'receiveSMSWebhook'])->name('client.sms.webhook');
     
+    Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
