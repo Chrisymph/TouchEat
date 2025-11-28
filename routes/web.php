@@ -64,6 +64,9 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     
     // NOUVELLE ROUTE POUR LES TRANSACTIONS SMS
     Route::get('/sms-transactions', [AdminController::class, 'smsTransactions'])->name('admin.sms.transactions');
+
+    // Route pour voir les SMS dans la base (debug)
+Route::get('/admin/sms-debug', [AdminController::class, 'smsDebug'])->name('admin.sms.debug');
     
     Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 });
@@ -87,6 +90,13 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     
     Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
+
+    // Route pour forcer la synchronisation SMS (debug)
+Route::post('/client/force-sync-sms', [ClientController::class, 'forceSyncSMS'])->name('client.sms.force-sync');
+
+// Route pour voir les SMS dans la base (debug)
+Route::get('/admin/sms-debug', [AdminController::class, 'smsDebug'])->name('admin.sms.debug');
+
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
 

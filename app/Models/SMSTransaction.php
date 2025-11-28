@@ -52,33 +52,109 @@ class SMSTransaction extends Model
 
         static::creating(function ($model) {
             // S'assurer que toutes les colonnes requises ont une valeur
-            if (empty($model->transaction_id)) {
-                $model->transaction_id = 'N/A';
+            if (empty($model->transaction_id) || $model->transaction_id === 'N/A') {
+                // Essayer d'extraire le transaction_id du message
+                $transactionId = self::extractTransactionIdFromMessage($model->message);
+                $model->transaction_id = $transactionId ?: 'N/A';
             }
-            if (empty($model->network)) {
-                $model->network = 'unknown';
+            
+            if (empty($model->network) || $model->network === 'unknown') {
+                $model->network = self::detectNetworkFromMessage($model->message, $model->sender_number);
             }
+            
             if (empty($model->receiver_number)) {
                 $model->receiver_number = 'N/A';
             }
+            
             if (empty($model->status)) {
                 $model->status = 'received';
             }
+            
             if (empty($model->sms_received_at)) {
                 $model->sms_received_at = now();
+            }
+            
+            // Si amount est null, essayer de l'extraire du message
+            if (is_null($model->amount)) {
+                $amount = self::extractAmountFromMessage($model->message);
+                if ($amount !== null) {
+                    $model->amount = $amount;
+                }
             }
         });
     }
 
     /**
-     * Trouver une transaction par ID
+     * Extraire le transaction_id du message
      */
-    public static function findTransaction($transactionId, $network)
+    private static function extractTransactionIdFromMessage($message)
     {
-        return self::where('transaction_id', $transactionId)
-                  ->where('network', $network)
-                  ->where('status', 'received')
-                  ->first();
+        // Pattern pour Moov Money Ref
+        if (preg_match('/Ref\s*:?\s*([A-Z0-9]{8,20})/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        // Pattern pour Txn ID
+        if (preg_match('/Txn ID:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Détecter le réseau depuis le message
+     */
+    private static function detectNetworkFromMessage($message, $senderNumber)
+    {
+        $message = strtolower($message);
+        
+        if (strpos($message, 'mtn') !== false) {
+            return 'mtn';
+        }
+        
+        if (strpos($message, 'moov') !== false) {
+            return 'moov';
+        }
+        
+        if (strpos($message, 'orange') !== false) {
+            return 'orange';
+        }
+        
+        // Détection par expéditeur
+        if (strpos($senderNumber, 'moov') !== false) {
+            return 'moov';
+        }
+        
+        return 'moov'; // Par défaut
+    }
+
+    /**
+     * Extraire le montant du message
+     */
+    private static function extractAmountFromMessage($message)
+    {
+        if (preg_match('/(\d+(?:[.,;\s]\d+)*)\s*FCFA/i', $message, $matches)) {
+            return floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[1]));
+        }
+        
+        return null;
+    }
+
+    /**
+     * Trouver une transaction par ID exact
+     */
+    public static function findExactTransaction($transactionId, $network = null)
+    {
+        $query = self::where('transaction_id', $transactionId)
+            ->where('status', 'received')
+            ->where('sms_received_at', '>=', now()->subHours(72));
+
+        if ($network) {
+            $query->where('network', $network);
+        }
+
+        return $query->first();
     }
 
     /**
@@ -86,24 +162,23 @@ class SMSTransaction extends Model
      */
     public static function isValidTransaction($transactionId, $network, $amount, $phoneNumber = null)
     {
-        $query = self::where('transaction_id', $transactionId)
-            ->where('network', $network)
-            ->where('status', 'received')
-            ->where('sms_received_at', '>=', now()->subHours(24));
-
-        if ($phoneNumber) {
-            $cleanedPhone = self::cleanPhoneForComparison($phoneNumber);
-            $query->whereRaw('REPLACE(REPLACE(sender_number, " ", ""), "+", "") LIKE ?', ['%' . $cleanedPhone . '%']);
-        }
-
-        $transaction = $query->first();
-
+        $transaction = self::findExactTransaction($transactionId, $network);
+        
         if (!$transaction) {
             return false;
         }
 
-        // Vérification stricte du montant
-        return abs($transaction->amount - $amount) <= 1;
+        // Vérification du montant
+        if (abs($transaction->amount - $amount) > 0.5) {
+            return false;
+        }
+
+        // Vérification du numéro de téléphone si fourni
+        if ($phoneNumber) {
+            return $transaction->phoneNumberMatches($phoneNumber);
+        }
+
+        return true;
     }
 
     /**
@@ -111,6 +186,8 @@ class SMSTransaction extends Model
      */
     private static function cleanPhoneForComparison($phone)
     {
+        if (empty($phone)) return '';
+        
         $cleaned = preg_replace('/[^0-9]/', '', $phone);
         
         // Gérer les numéros avec indicatif 225
@@ -118,39 +195,79 @@ class SMSTransaction extends Model
             $cleaned = '0' . substr($cleaned, 3);
         }
         
-        // Gérer les numéros avec indicatif +225
-        if (strlen($cleaned) === 13 && substr($cleaned, 0, 4) === '2250') {
-            $cleaned = '0' . substr($cleaned, 4);
-        }
-        
-        // S'assurer d'avoir un format 10 chiffres
-        if (strlen($cleaned) === 9) {
-            $cleaned = '0' . $cleaned;
+        // Retourner les 10 derniers chiffres
+        if (strlen($cleaned) > 10) {
+            $cleaned = substr($cleaned, -10);
         }
         
         return $cleaned;
     }
 
     /**
-     * Trouver une transaction valide
+     * Vérifier si le numéro de téléphone correspond à la transaction
      */
-    public static function findValidTransaction($transactionId, $network, $amount = null, $phoneNumber = null)
+    public function phoneNumberMatches($phoneNumber)
     {
-        $query = self::where('transaction_id', $transactionId)
-            ->where('network', $network)
-            ->where('status', 'received')
-            ->where('sms_received_at', '>=', now()->subHours(24));
+        $cleanedPhone = self::cleanPhoneForComparison($phoneNumber);
+        
+        if (empty($cleanedPhone)) return false;
 
-        if ($amount !== null) {
-            $query->whereBetween('amount', [$amount - 1, $amount + 1]);
+        // 1. Vérifier dans l'expéditeur
+        $cleanedSender = self::cleanPhoneForComparison($this->sender_number);
+        if ($cleanedSender && self::comparePhones($cleanedSender, $cleanedPhone)) {
+            return true;
         }
 
-        if ($phoneNumber) {
-            $cleanedPhone = self::cleanPhoneForComparison($phoneNumber);
-            $query->whereRaw('REPLACE(REPLACE(sender_number, " ", ""), "+", "") LIKE ?', ['%' . $cleanedPhone . '%']);
+        // 2. Vérifier dans le message
+        if (strpos($this->message, $cleanedPhone) !== false) {
+            return true;
         }
 
-        return $query->first();
+        // 3. Extraire tous les numéros du message et vérifier
+        $phonesInMessage = self::extractPhonesFromMessage($this->message);
+        foreach ($phonesInMessage as $phoneInMessage) {
+            if (self::comparePhones($phoneInMessage, $cleanedPhone)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Comparer deux numéros de téléphone
+     */
+    private static function comparePhones($phone1, $phone2)
+    {
+        if (!$phone1 || !$phone2) return false;
+
+        // Comparaison exacte
+        if ($phone1 === $phone2) return true;
+
+        // Comparaison des 8 derniers chiffres
+        if (strlen($phone1) >= 8 && strlen($phone2) >= 8) {
+            return substr($phone1, -8) === substr($phone2, -8);
+        }
+
+        return false;
+    }
+
+    /**
+     * Extraire les numéros de téléphone d'un message
+     */
+    private static function extractPhonesFromMessage($message)
+    {
+        $phones = [];
+        preg_match_all('/\b\d{8,15}\b/', $message, $matches);
+        
+        foreach ($matches[0] as $phone) {
+            $cleaned = self::cleanPhoneForComparison($phone);
+            if (strlen($cleaned) >= 8) {
+                $phones[] = $cleaned;
+            }
+        }
+        
+        return array_unique($phones);
     }
 
     /**
@@ -174,11 +291,11 @@ class SMSTransaction extends Model
     }
 
     /**
-     * Scope pour les transactions récentes (moins d'1 heure)
+     * Scope pour les transactions récentes
      */
-    public function scopeRecent($query)
+    public function scopeRecent($query, $hours = 24)
     {
-        return $query->where('sms_received_at', '>=', now()->subHour());
+        return $query->where('sms_received_at', '>=', now()->subHours($hours));
     }
 
     /**
@@ -187,32 +304,6 @@ class SMSTransaction extends Model
     public function scopeByNetwork($query, $network)
     {
         return $query->where('network', $network);
-    }
-
-    /**
-     * Scope pour les transactions par numéro d'expéditeur
-     */
-    public function scopeBySender($query, $senderNumber)
-    {
-        return $query->where('sender_number', $senderNumber);
-    }
-
-    /**
-     * Vérifier si la transaction est expirée
-     */
-    public function isExpired()
-    {
-        return $this->sms_received_at->diffInHours(now()) > 24;
-    }
-
-    /**
-     * Marquer comme expirée
-     */
-    public function markAsExpired()
-    {
-        if ($this->status === 'received' && $this->isExpired()) {
-            $this->update(['status' => 'expired']);
-        }
     }
 
     /**
@@ -237,17 +328,7 @@ class SMSTransaction extends Model
             'used' => self::where('status', 'used')->count(),
             'expired' => self::where('status', 'expired')->count(),
             'today' => self::whereDate('created_at', today())->count(),
+            'last_24h' => self::where('sms_received_at', '>=', now()->subHours(24))->count(),
         ];
-    }
-
-    /**
-     * Rechercher par ID de transaction dans le message (nouvelle méthode)
-     */
-    public static function findByTransactionIdInMessage($transactionId)
-    {
-        return self::where('message', 'LIKE', '%' . $transactionId . '%')
-                  ->where('status', 'received')
-                  ->where('sms_received_at', '>=', now()->subHours(24))
-                  ->first();
     }
 }

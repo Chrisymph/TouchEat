@@ -367,35 +367,66 @@ class ClientController extends Controller
         }
 
         try {
-            // SYNCHRONISER AUTOMATIQUEMENT TOUS LES FICHIERS SMS
+            // FORCER la synchronisation des fichiers SMS
+            Log::info("🔄 FORCE Synchronisation SMS pour la transaction: " . $request->transaction_id);
             $syncResult = $this->syncAllSMSFiles();
-            Log::info("Synchronisation automatique SMS: {$syncResult['imported']} nouveaux SMS importés");
+            Log::info("Synchronisation SMS résultat: {$syncResult['imported']} nouveaux SMS importés");
 
-            // Chercher dans les SMS stockés
+            // Attendre un peu pour être sûr que les données sont sauvegardées
+            sleep(2);
+
+            // DEBUG: Afficher tous les SMS dans la base
+            $allSMS = SMSTransaction::where('status', 'received')
+                ->where('sms_received_at', '>=', now()->subDays(2))
+                ->get();
+            
+            Log::info("📋 SMS dans la base de données:", [
+                'total' => $allSMS->count(),
+                'sms_list' => $allSMS->map(function($sms) {
+                    return [
+                        'id' => $sms->id,
+                        'transaction_id' => $sms->transaction_id,
+                        'sender' => $sms->sender_number,
+                        'amount' => $sms->amount,
+                        'message_preview' => substr($sms->message, 0, 50)
+                    ];
+                })->toArray()
+            ]);
+
+            // Chercher dans les SMS stockés avec une recherche plus large
             $smsTransaction = $this->findMatchingSMS($request, $order);
 
             if (!$smsTransaction) {
-                Log::warning("Aucun SMS correspondant trouvé", [
+                Log::warning("❌ Aucun SMS correspondant trouvé après recherche étendue", [
                     'transaction_id' => $request->transaction_id,
                     'network' => $request->network,
                     'order_id' => $orderId,
                     'order_total' => $order->total,
-                    'phone_number' => $request->phone_number
+                    'phone_number' => $request->phone_number,
+                    'search_time' => now()->toDateTimeString()
                 ]);
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucun SMS de confirmation trouvé. Vérifiez l\'ID de transaction ou attendez que l\'admin exporte les SMS.'
+                    'message' => 'Aucun SMS de confirmation trouvé pour cette transaction. Vérifiez que : 1) L\'ID de transaction est exact 2) Le SMS est bien arrivé 3) Le numéro de téléphone est correct'
                 ], 404);
             }
+
+            Log::info("✅ SMS trouvé:", [
+                'sms_id' => $smsTransaction->id,
+                'transaction_id' => $smsTransaction->transaction_id,
+                'sender' => $smsTransaction->sender_number,
+                'amount' => $smsTransaction->amount,
+                'message_preview' => substr($smsTransaction->message, 0, 100)
+            ]);
 
             // Analyser le SMS pour extraire les infos
             $transactionData = $this->parsePaymentSMS($smsTransaction->message, $smsTransaction->sender_number);
             
             if (!$transactionData) {
-                Log::warning("SMS non analysable", [
+                Log::warning("❌ SMS non analysable", [
                     'sms_id' => $smsTransaction->id,
-                    'message' => substr($smsTransaction->message, 0, 100)
+                    'message' => $smsTransaction->message
                 ]);
                 
                 return response()->json([
@@ -405,7 +436,7 @@ class ClientController extends Controller
             }
 
             // Vérifier la cohérence des données
-            $validation = $this->validateTransactionData($transactionData, $request, $order);
+            $validation = $this->validateTransactionData($transactionData, $request, $order, $smsTransaction);
             
             if (!$validation['valid']) {
                 return response()->json([
@@ -430,11 +461,12 @@ class ClientController extends Controller
             // Finaliser la transaction
             $this->finalizeTransaction($smsTransaction, $transactionData, $order, $request);
 
-            Log::info("✅ Paiement validé avec matching SMS", [
+            Log::info("🎉 Paiement validé avec succès!", [
                 'order_id' => $order->id,
                 'sms_id' => $smsTransaction->id,
                 'transaction_id' => $request->transaction_id,
-                'amount' => $order->total
+                'amount' => $order->total,
+                'phone_number' => $request->phone_number
             ]);
 
             return response()->json([
@@ -444,8 +476,9 @@ class ClientController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Erreur processTransaction:', [
+            Log::error('💥 Erreur processTransaction:', [
                 'error' => $e->getMessage(), 
+                'trace' => $e->getTraceAsString(),
                 'order_id' => $orderId,
                 'transaction_id' => $request->transaction_id ?? 'N/A'
             ]);
@@ -458,112 +491,91 @@ class ClientController extends Controller
     }
 
     /**
-     * SYNCHRONISER TOUS LES FICHIERS SMS (CORRIGÉ)
-     */
-    private function syncAllSMSFiles()
-    {
-        $smsDirectory = storage_path('app/mobiletrans_sms');
-        $totalImported = 0;
-        
-        // Créer le dossier s'il n'existe pas
-        if (!file_exists($smsDirectory)) {
-            mkdir($smsDirectory, 0755, true);
-            Log::info("Dossier MobileTrans créé: {$smsDirectory}");
-            return ['imported' => 0, 'message' => 'Dossier créé'];
-        }
-
-        // Vérifier TOUS les fichiers (même ceux déjà traités)
-        $files = glob($smsDirectory . '/*.{csv,html,txt}', GLOB_BRACE);
-        
-        foreach ($files as $file) {
-            $filename = basename($file);
-            Log::info("Traitement du fichier: {$filename}");
-            
-            $extension = pathinfo($file, PATHINFO_EXTENSION);
-            $imported = 0;
-            
-            switch ($extension) {
-                case 'csv':
-                    $imported = $this->processCSVFile($file);
-                    break;
-                case 'html':
-                    $imported = $this->processHTMLFile($file);
-                    break;
-                case 'txt':
-                    $imported = $this->processTXTFile($file);
-                    break;
-            }
-            
-            $totalImported += $imported;
-            Log::info("Fichier {$filename} traité: {$imported} SMS importés");
-        }
-
-        return ['imported' => $totalImported, 'message' => "{$totalImported} SMS importés"];
-    }
-
-    /**
-     * Chercher un SMS qui correspond aux critères (CORRIGÉ)
+     * Chercher un SMS qui correspond aux critères
      */
     private function findMatchingSMS($request, $order)
     {
-        Log::info("🔍 Recherche SMS correspondant:", [
-            'transaction_id' => $request->transaction_id,
-            'network' => $request->network,
-            'order_amount' => $order->total,
-            'phone' => $request->phone_number
+        $transactionId = trim($request->transaction_id);
+        $phoneNumber = trim($request->phone_number);
+        $network = $request->network;
+        $orderAmount = $order->total;
+
+        Log::info("🔍 RECHERCHE SMS DÉTAILLÉE:", [
+            'transaction_id' => $transactionId,
+            'phone_number' => $phoneNumber,
+            'network' => $network,
+            'order_amount' => $orderAmount,
+            'search_time' => now()->toDateTimeString()
         ]);
 
-        // 1. Chercher par ID de transaction exact dans le message
-        $smsByTransactionId = SMSTransaction::where('message', 'LIKE', '%' . $request->transaction_id . '%')
-            ->whereIn('status', ['received', 'pending'])
-            ->where('sms_received_at', '>=', now()->subHours(24))
+        $cleanedPhone = $this->cleanPhoneNumber($phoneNumber);
+
+        // STRATÉGIE 1: Recherche EXACTE par transaction_id (priorité maximale)
+        $exactMatch = SMSTransaction::where('transaction_id', $transactionId)
+            ->where('status', 'received')
+            ->where('sms_received_at', '>=', now()->subHours(48))
             ->first();
 
-        if ($smsByTransactionId) {
-            Log::info("✅ SMS trouvé par ID transaction: {$request->transaction_id}");
-            return $smsByTransactionId;
+        if ($exactMatch) {
+            Log::info("✅ STRATÉGIE 1: SMS trouvé par transaction_id exact", [
+                'sms_id' => $exactMatch->id,
+                'transaction_id' => $exactMatch->transaction_id
+            ]);
+            return $exactMatch;
         }
 
-        // 2. Chercher dans la colonne transaction_id de la base
-        $smsByTransactionColumn = SMSTransaction::where('transaction_id', $request->transaction_id)
-            ->whereIn('status', ['received', 'pending'])
-            ->where('sms_received_at', '>=', now()->subHours(24))
+        // STRATÉGIE 2: Recherche dans le message avec transaction_id exact
+        $messageMatch = SMSTransaction::where('message', 'LIKE', '%' . $transactionId . '%')
+            ->where('status', 'received')
+            ->where('sms_received_at', '>=', now()->subHours(48))
             ->first();
 
-        if ($smsByTransactionColumn) {
-            Log::info("✅ SMS trouvé par colonne transaction_id: {$request->transaction_id}");
-            return $smsByTransactionColumn;
+        if ($messageMatch) {
+            Log::info("✅ STRATÉGIE 2: SMS trouvé par transaction_id dans message", [
+                'sms_id' => $messageMatch->id,
+                'transaction_id_in_message' => $transactionId
+            ]);
+            return $messageMatch;
         }
 
-        // 3. Chercher par numéro de téléphone exact
-        $cleanedPhone = $this->cleanPhoneNumber($request->phone_number);
-        
-        $smsByPhone = SMSTransaction::where('sender_number', 'LIKE', '%' . $cleanedPhone . '%')
-            ->whereIn('status', ['received', 'pending'])
-            ->where('sms_received_at', '>=', now()->subHours(24))
+        // STRATÉGIE 3: Recherche par numéro de téléphone + montant exact
+        $phoneAmountMatch = SMSTransaction::where(function($query) use ($cleanedPhone) {
+                $query->where('sender_number', 'LIKE', '%' . $cleanedPhone . '%')
+                      ->orWhere('message', 'LIKE', '%' . $cleanedPhone . '%');
+            })
+            ->whereBetween('amount', [$orderAmount - 0.5, $orderAmount + 0.5])
+            ->where('status', 'received')
+            ->where('sms_received_at', '>=', now()->subHours(48))
             ->first();
 
-        if ($smsByPhone) {
-            Log::info("✅ SMS trouvé par numéro: {$cleanedPhone}");
-            return $smsByPhone;
+        if ($phoneAmountMatch) {
+            Log::info("✅ STRATÉGIE 3: SMS trouvé par numéro + montant exact", [
+                'sms_id' => $phoneAmountMatch->id,
+                'phone_match' => $cleanedPhone,
+                'amount_match' => $phoneAmountMatch->amount
+            ]);
+            return $phoneAmountMatch;
         }
 
-        // 4. Chercher par montant approximatif
-        $smsByAmount = SMSTransaction::where('amount', '>=', $order->total - 1)
-            ->where('amount', '<=', $order->total + 1)
-            ->whereIn('status', ['received', 'pending'])
-            ->where('sms_received_at', '>=', now()->subHours(24))
+        // STRATÉGIE 4: Recherche par montant exact seulement (dernier recours)
+        $amountMatch = SMSTransaction::whereBetween('amount', [$orderAmount - 0.5, $orderAmount + 0.5])
+            ->where('status', 'received')
+            ->where('sms_received_at', '>=', now()->subHours(48))
             ->first();
 
-        if ($smsByAmount) {
-            Log::info("✅ SMS trouvé par montant: {$order->total}");
-            return $smsByAmount;
+        if ($amountMatch) {
+            Log::info("✅ STRATÉGIE 4: SMS trouvé par montant exact seulement", [
+                'sms_id' => $amountMatch->id,
+                'amount' => $amountMatch->amount
+            ]);
+            return $amountMatch;
         }
 
-        Log::warning("❌ Aucun SMS correspondant trouvé pour la recherche", [
-            'transaction_id' => $request->transaction_id,
-            'phone' => $cleanedPhone,
-            'amount' => $order->total
+        Log::warning("❌ AUCUN SMS TROUVÉ après toutes les stratégies", [
+            'transaction_id' => $transactionId,
+            'phone_cleaned' => $cleanedPhone,
+            'order_amount' => $orderAmount,
+            'network' => $network
         ]);
 
         return null;
@@ -572,17 +584,25 @@ class ClientController extends Controller
     /**
      * Valider les données de transaction
      */
-    private function validateTransactionData($transactionData, $request, $order)
+    private function validateTransactionData($transactionData, $request, $order, $smsTransaction)
     {
-        // Vérifier l'ID de transaction
-        if ($transactionData['transaction_id'] !== $request->transaction_id) {
+        $transactionId = trim($request->transaction_id);
+        $phoneNumber = trim($request->phone_number);
+        $orderAmount = $order->total;
+
+        // 1. Vérifier l'ID de transaction
+        if ($transactionData['transaction_id'] !== $transactionId) {
+            Log::warning("❌ ID transaction ne correspond pas", [
+                'expected' => $transactionId,
+                'actual' => $transactionData['transaction_id']
+            ]);
             return [
                 'valid' => false,
                 'message' => 'L\'ID de transaction ne correspond pas au SMS reçu.'
             ];
         }
 
-        // Vérifier le réseau
+        // 2. Vérifier le réseau
         if ($transactionData['network'] !== $request->network) {
             return [
                 'valid' => false,
@@ -590,15 +610,173 @@ class ClientController extends Controller
             ];
         }
 
-        // Vérifier le montant
-        if (abs($transactionData['amount'] - $order->total) > 1) {
+        // 3. Vérifier le montant (tolérance très faible)
+        if (abs($transactionData['amount'] - $orderAmount) > 0.5) {
             return [
                 'valid' => false,
-                'message' => 'Le montant du SMS (' . number_format($transactionData['amount'], 0, ',', ' ') . ' FCFA) ne correspond pas à la commande (' . number_format($order->total, 0, ',', ' ') . ' FCFA).'
+                'message' => 'Le montant du SMS (' . number_format($transactionData['amount'], 0, ',', ' ') . ' FCFA) ne correspond pas à la commande (' . number_format($orderAmount, 0, ',', ' ') . ' FCFA).'
             ];
         }
 
+        // 4. VÉRIFICATION CRITIQUE: Vérifier que le numéro de téléphone correspond
+        $phoneValidation = $this->verifyPhoneNumberMatch($smsTransaction, $phoneNumber, $transactionData);
+        
+        if (!$phoneValidation['valid']) {
+            Log::warning("❌ Numéro de téléphone ne correspond pas", [
+                'provided_phone' => $phoneNumber,
+                'sms_sender' => $smsTransaction->sender_number,
+                'message_content' => substr($smsTransaction->message, 0, 100)
+            ]);
+            return [
+                'valid' => false,
+                'message' => $phoneValidation['message']
+            ];
+        }
+
+        Log::info("✅ Toutes les validations passées avec succès");
         return ['valid' => true, 'message' => 'OK'];
+    }
+
+    /**
+     * Vérifier la correspondance du numéro de téléphone
+     */
+    private function verifyPhoneNumberMatch($smsTransaction, $providedPhone, $transactionData)
+    {
+        $cleanedProvidedPhone = $this->cleanPhoneNumber($providedPhone);
+        
+        Log::info("🔍 VÉRIFICATION NUMÉRO:", [
+            'provided_phone' => $providedPhone,
+            'cleaned_phone' => $cleanedProvidedPhone,
+            'sms_sender' => $smsTransaction->sender_number,
+            'sms_id' => $smsTransaction->id
+        ]);
+
+        // 1. Vérifier dans le numéro d'expéditeur du SMS
+        $cleanedSender = $this->cleanPhoneNumber($smsTransaction->sender_number);
+        if ($cleanedSender && $this->comparePhoneNumbers($cleanedSender, $cleanedProvidedPhone)) {
+            Log::info("✅ Numéro vérifié dans l'expéditeur SMS", [
+                'provided' => $cleanedProvidedPhone,
+                'sender' => $cleanedSender
+            ]);
+            return ['valid' => true, 'message' => 'OK'];
+        }
+
+        // 2. Vérifier dans le message du SMS (recherche exacte)
+        if (strpos($smsTransaction->message, $cleanedProvidedPhone) !== false) {
+            Log::info("✅ Numéro vérifié dans le message SMS (exact match)");
+            return ['valid' => true, 'message' => 'OK'];
+        }
+
+        // 3. Extraire tous les numéros du message et vérifier
+        $phonesInMessage = $this->extractPhoneNumbersFromMessage($smsTransaction->message);
+        foreach ($phonesInMessage as $phoneInMessage) {
+            $cleanedPhoneInMessage = $this->cleanPhoneNumber($phoneInMessage);
+            if ($this->comparePhoneNumbers($cleanedPhoneInMessage, $cleanedProvidedPhone)) {
+                Log::info("✅ Numéro vérifié dans les numéros extraits du message", [
+                    'provided' => $cleanedProvidedPhone,
+                    'found_in_message' => $cleanedPhoneInMessage
+                ]);
+                return ['valid' => true, 'message' => 'OK'];
+            }
+        }
+
+        // 4. Vérifier dans les données extraites de la transaction
+        if (isset($transactionData['sender_phone'])) {
+            $cleanedTransactionPhone = $this->cleanPhoneNumber($transactionData['sender_phone']);
+            if ($this->comparePhoneNumbers($cleanedTransactionPhone, $cleanedProvidedPhone)) {
+                Log::info("✅ Numéro vérifié dans les données transaction");
+                return ['valid' => true, 'message' => 'OK'];
+            }
+        }
+
+        Log::warning("❌ Aucune correspondance de numéro trouvée", [
+            'provided_phone' => $cleanedProvidedPhone,
+            'sender_phone' => $cleanedSender,
+            'phones_in_message' => $phonesInMessage,
+            'message_preview' => substr($smsTransaction->message, 0, 100)
+        ]);
+
+        return [
+            'valid' => false,
+            'message' => 'Le numéro de téléphone saisi ne correspond pas au numéro utilisé pour la transaction. Vérifiez que le numéro est exact.'
+        ];
+    }
+
+    /**
+     * Comparer deux numéros de téléphone
+     */
+    private function comparePhoneNumbers($phone1, $phone2)
+    {
+        if (!$phone1 || !$phone2) return false;
+
+        // Normaliser les numéros
+        $p1 = $this->cleanPhoneNumber($phone1);
+        $p2 = $this->cleanPhoneNumber($phone2);
+
+        // Comparaison exacte
+        if ($p1 === $p2) return true;
+
+        // Comparaison des 8 derniers chiffres (sans l'indicatif)
+        if (strlen($p1) >= 8 && strlen($p2) >= 8) {
+            $last8p1 = substr($p1, -8);
+            $last8p2 = substr($p2, -8);
+            if ($last8p1 === $last8p2) return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Extraire tous les numéros de téléphone d'un message
+     */
+    private function extractPhoneNumbersFromMessage($message)
+    {
+        $phones = [];
+        
+        // Pattern pour numéros avec 8 à 15 chiffres
+        preg_match_all('/\b\d{8,15}\b/', $message, $matches);
+        
+        foreach ($matches[0] as $phone) {
+            $cleaned = $this->cleanPhoneNumber($phone);
+            if (strlen($cleaned) >= 8) {
+                $phones[] = $cleaned;
+            }
+        }
+
+        return array_unique($phones);
+    }
+
+    /**
+     * Nettoyer le numéro de téléphone pour comparaison
+     */
+    private function cleanPhoneNumber($phone)
+    {
+        if (empty($phone)) return '';
+
+        // Supprimer tous les caractères non numériques
+        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Gérer les numéros avec indicatif 225
+        if (strlen($cleaned) === 12 && substr($cleaned, 0, 3) === '225') {
+            $cleaned = '0' . substr($cleaned, 3);
+        }
+        
+        // Gérer les numéros avec indicatif +225
+        if (strlen($cleaned) === 13 && substr($cleaned, 0, 4) === '2250') {
+            $cleaned = '0' . substr($cleaned, 4);
+        }
+        
+        // S'assurer d'avoir un format cohérent (au moins 8 chiffres)
+        if (strlen($cleaned) === 9) {
+            $cleaned = '0' . $cleaned;
+        }
+
+        // Retourner les 10 derniers chiffres si plus long
+        if (strlen($cleaned) > 10) {
+            $cleaned = substr($cleaned, -10);
+        }
+        
+        return $cleaned;
     }
 
     /**
@@ -634,40 +812,85 @@ class ClientController extends Controller
     }
 
     /**
-     * Nettoyer le numéro de téléphone pour comparaison
+     * SYNCHRONISER TOUS LES FICHIERS SMS
      */
-    private function cleanPhoneNumber($phone)
+    private function syncAllSMSFiles()
     {
-        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+        $smsDirectory = storage_path('app/mobiletrans_sms');
+        $totalImported = 0;
         
-        // Gérer les numéros avec indicatif 225
-        if (strlen($cleaned) === 12 && substr($cleaned, 0, 3) === '225') {
-            $cleaned = '0' . substr($cleaned, 3);
+        Log::info("🔄 DÉBUT SYNCHRONISATION SMS");
+        
+        // Créer le dossier s'il n'existe pas
+        if (!file_exists($smsDirectory)) {
+            mkdir($smsDirectory, 0755, true);
+            Log::info("📁 Dossier créé: {$smsDirectory}");
+            return ['imported' => 0, 'message' => 'Dossier créé'];
         }
+
+        // Vérifier TOUS les fichiers
+        $files = glob($smsDirectory . '/*.{csv,html,txt}', GLOB_BRACE);
         
-        // Gérer les numéros avec indicatif +225
-        if (strlen($cleaned) === 13 && substr($cleaned, 0, 4) === '2250') {
-            $cleaned = '0' . substr($cleaned, 4);
+        Log::info("📂 Fichiers trouvés: " . count($files));
+        
+        foreach ($files as $file) {
+            $filename = basename($file);
+            Log::info("📄 Traitement du fichier: {$filename}");
+            
+            $extension = pathinfo($file, PATHINFO_EXTENSION);
+            $imported = 0;
+            
+            switch ($extension) {
+                case 'csv':
+                    $imported = $this->processCSVFile($file);
+                    break;
+                case 'html':
+                    $imported = $this->processHTMLFile($file);
+                    break;
+                case 'txt':
+                    $imported = $this->processTXTFile($file);
+                    break;
+            }
+            
+            $totalImported += $imported;
+            Log::info("✅ Fichier {$filename} traité: {$imported} SMS importés");
         }
-        
-        // S'assurer d'avoir un format 10 chiffres
-        if (strlen($cleaned) === 9) {
-            $cleaned = '0' . $cleaned;
+
+        // Vérifier si le SMS spécifique est maintenant dans la base
+        $targetSMS = SMSTransaction::where('transaction_id', '030812360189')->first();
+        if ($targetSMS) {
+            Log::info("🎯 SUCCÈS: SMS 030812360189 trouvé dans la base! ID: {$targetSMS->id}");
+        } else {
+            Log::warning("⚠️ ATTENTION: SMS 030812360189 toujours pas trouvé après importation");
+            
+            // Afficher tous les SMS dans la base pour debug
+            $allSMS = SMSTransaction::orderBy('id', 'desc')->limit(10)->get();
+            Log::info("📋 Derniers SMS dans la base:", $allSMS->map(function($sms) {
+                return [
+                    'id' => $sms->id,
+                    'transaction_id' => $sms->transaction_id,
+                    'amount' => $sms->amount,
+                    'message_preview' => substr($sms->message, 0, 50)
+                ];
+            })->toArray());
         }
+
+        Log::info("📈 SYNCHRONISATION TERMINÉE: {$totalImported} SMS importés au total");
         
-        return $cleaned;
+        return ['imported' => $totalImported, 'message' => "{$totalImported} SMS importés"];
     }
 
     /**
-     * Traiter les fichiers CSV (CORRIGÉ)
+     * Traiter les fichiers CSV
      */
     private function processCSVFile($filePath)
     {
         $imported = 0;
-        Log::info("📂 Traitement du fichier CSV: " . basename($filePath));
+        $filename = basename($filePath);
+        Log::info("🔄 TRAITEMENT CSV: {$filename}");
 
         if (($handle = fopen($filePath, 'r')) !== FALSE) {
-            // Lire l'en-tête BOM UTF-8 si présent
+            // Lire et ignorer le BOM UTF-8 si présent
             $bom = fread($handle, 3);
             if ($bom != "\xEF\xBB\xBF") {
                 rewind($handle);
@@ -675,65 +898,166 @@ class ClientController extends Controller
 
             // Lire l'en-tête
             $header = fgetcsv($handle, 1000, ',');
-            Log::info("En-tête CSV détecté:", $header);
-            
-            while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
+            if (!$header) {
+                fclose($handle);
+                Log::error("❌ En-tête CSV vide");
+                return 0;
+            }
+
+            Log::info("📊 Structure CSV détectée:", $header);
+
+            $lineNumber = 0;
+            while (($data = fgetcsv($handle, 3000, ',')) !== FALSE) {
+                $lineNumber++;
+                
+                // Vérifier que nous avons le bon nombre de colonnes
                 if (count($header) === count($data)) {
                     $smsData = array_combine($header, $data);
                     
-                    // Adapter selon la structure de votre fichier CSV
-                    $message = $smsData['Content'] ?? $smsData['Message'] ?? $smsData['message'] ?? $smsData['Body'] ?? '';
-                    $sender = $smsData['Number'] ?? $smsData['Phone'] ?? $smsData['Address'] ?? $smsData['Sender'] ?? 'moovmoney';
-                    $date = $smsData['Time'] ?? $smsData['Date'] ?? $smsData['Received'] ?? now();
+                    // EXTRAIRE LES DONNÉES SELON VOTRE FORMAT EXACT
+                    $message = $smsData['Content'] ?? '';
+                    $sender = $smsData['Number'] ?? 'moovmoney';
+                    $date = $smsData['Time'] ?? now();
                     
-                    Log::info("SMS lu - Expéditeur: {$sender}, Message: " . substr($message, 0, 50));
-                    
-                    if (!empty($message) && $this->isPaymentSMS($message)) {
-                        // Vérifier si le SMS existe déjà
-                        $exists = SMSTransaction::where('message', $message)
-                            ->where('sender_number', $sender)
-                            ->exists();
+                    Log::info("📱 Ligne {$lineNumber} - Expéditeur: {$sender}, Date: {$date}");
 
-                        if (!$exists) {
+                    // Nettoyer le message
+                    $cleanMessage = $this->cleanMessage($message);
+                    
+                    if (!empty($cleanMessage)) {
+                        Log::info("📨 Message original: " . substr($message, 0, 100));
+                        Log::info("🧹 Message nettoyé: " . substr($cleanMessage, 0, 100));
+                        
+                        // Vérifier si c'est un SMS de paiement
+                        if ($this->isPaymentSMS($cleanMessage)) {
+                            Log::info("💰 SMS de paiement détecté ligne {$lineNumber}");
+                            
                             // Analyser le SMS pour extraire les informations
-                            $transactionData = $this->parsePaymentSMS($message, $sender);
+                            $transactionData = $this->parsePaymentSMS($cleanMessage, $sender);
                             
                             if ($transactionData) {
-                                // Créer le SMS avec toutes les valeurs requises
-                                $smsRecord = [
-                                    'sender_number' => $sender,
-                                    'message' => $message,
-                                    'sms_received_at' => $this->parseDate($date),
-                                    'status' => 'received',
-                                    'transaction_id' => $transactionData['transaction_id'] ?? 'N/A',
-                                    'network' => $transactionData['network'] ?? 'unknown',
-                                    'receiver_number' => $transactionData['receiver_number'] ?? 'N/A'
-                                ];
-                                
-                                // Ajouter le montant seulement s'il est disponible
-                                if (isset($transactionData['amount'])) {
-                                    $smsRecord['amount'] = $transactionData['amount'];
+                                Log::info("✅ SMS analysé avec succès:", [
+                                    'transaction_id' => $transactionData['transaction_id'],
+                                    'amount' => $transactionData['amount'],
+                                    'network' => $transactionData['network']
+                                ]);
+
+                                // Vérifier si ce SMS existe déjà
+                                $exists = SMSTransaction::where('transaction_id', $transactionData['transaction_id'])
+                                    ->orWhere('message', $cleanMessage)
+                                    ->exists();
+
+                                if (!$exists) {
+                                    try {
+                                        // Créer l'enregistrement SMS
+                                        $smsRecord = [
+                                            'sender_number' => $sender,
+                                            'message' => $cleanMessage,
+                                            'sms_received_at' => $this->parseDate($date),
+                                            'status' => 'received',
+                                            'transaction_id' => $transactionData['transaction_id'],
+                                            'network' => $transactionData['network'],
+                                            'receiver_number' => $transactionData['receiver_number'] ?? 'N/A',
+                                            'amount' => $transactionData['amount']
+                                        ];
+
+                                        $sms = SMSTransaction::create($smsRecord);
+                                        $imported++;
+                                        
+                                        Log::info("🎉 SMS IMPORTÉ - ID: {$sms->id}, Ref: {$transactionData['transaction_id']}, Montant: {$transactionData['amount']} FCFA");
+                                        
+                                        // Vérification spéciale pour le SMS qui nous intéresse
+                                        if ($transactionData['transaction_id'] == '030812360189') {
+                                            Log::info("🎯 SMS CRITIQUE TROUVÉ!: Transaction 030812360189 importée avec succès!");
+                                        }
+                                        
+                                    } catch (\Exception $e) {
+                                        Log::error("❌ Erreur insertion SMS ligne {$lineNumber}: " . $e->getMessage());
+                                    }
+                                } else {
+                                    Log::info("⏭️ SMS déjà existant ligne {$lineNumber} - Ref: {$transactionData['transaction_id']}");
                                 }
-                                
-                                SMSTransaction::create($smsRecord);
-                                $imported++;
-                                Log::info("✅ Nouveau SMS importé: {$sender} - " . substr($message, 0, 50));
                             } else {
-                                Log::warning("❌ SMS non analysable: " . substr($message, 0, 50));
+                                Log::warning("⚠️ SMS non analysable ligne {$lineNumber}");
+                                // Sauvegarder quand même le SMS même s'il n'est pas analysable
+                                $this->saveUnparsedSMS($cleanMessage, $sender, $date);
                             }
                         } else {
-                            Log::info("⏭️ SMS déjà existant, ignoré");
+                            Log::info("📭 SMS non-paiement ignoré ligne {$lineNumber}");
                         }
                     }
+                } else {
+                    Log::warning("📏 Ligne {$lineNumber}: Incohérence colonnes", [
+                        'header' => count($header),
+                        'data' => count($data)
+                    ]);
                 }
             }
             fclose($handle);
         } else {
-            Log::error("❌ Impossible d'ouvrir le fichier CSV: " . $filePath);
+            Log::error("❌ Impossible d'ouvrir le fichier: {$filePath}");
         }
 
-        Log::info("📊 Fichier CSV traité: {$imported} SMS importés");
+        Log::info("📈 IMPORTATION TERMINÉE: {$imported} SMS importés depuis {$filename}");
         return $imported;
+    }
+
+    /**
+     * Sauvegarder les SMS non analysables
+     */
+    private function saveUnparsedSMS($message, $sender, $date)
+    {
+        try {
+            // Vérifier si le SMS existe déjà
+            $exists = SMSTransaction::where('message', $message)
+                ->where('sender_number', $sender)
+                ->exists();
+
+            if (!$exists) {
+                SMSTransaction::create([
+                    'sender_number' => $sender,
+                    'message' => $message,
+                    'sms_received_at' => $this->parseDate($date),
+                    'status' => 'received',
+                    'transaction_id' => 'N/A',
+                    'network' => 'unknown',
+                    'receiver_number' => 'N/A',
+                    'amount' => null
+                ]);
+                Log::info("💾 SMS non-analysé sauvegardé");
+            }
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur sauvegarde SMS non-analysé: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Nettoyer le message
+     */
+    private function cleanMessage($message)
+    {
+        if (empty($message)) return '';
+
+        // Supprimer les caractères de contrôle
+        $message = preg_replace('/[\x00-\x1F\x7F]/u', '', $message);
+        
+        // Remplacer les caractères mal encodés spécifiques à votre fichier
+        $replacements = [
+            'ďťż' => '', 'â' => "'", 'â' => "'", 'Â' => '',
+            'â' => "'", 'â' => '"', 'â' => '"', 'â¢' => '-',
+            'â¦' => '...', 'â' => '-', 'â' => '—',
+            'Ã©' => 'é', 'Ã¨' => 'è', 'Ã¢' => 'â', 'Ãª' => 'ê',
+            'Ã®' => 'î', 'Ã´' => 'ô', 'Ã»' => 'û', 'Ã§' => 'ç',
+            'Ã¯' => 'ï', 'Ã«' => 'ë', 'Ã¹' => 'ù', 'Ã¤' => 'ä',
+            'Ã¶' => 'ö', 'Ã¼' => 'ü', 'Â°' => '°'
+        ];
+        
+        $message = str_replace(array_keys($replacements), array_values($replacements), $message);
+        
+        // Supprimer les espaces multiples
+        $message = preg_replace('/\s+/', ' ', $message);
+        
+        return trim($message);
     }
 
     /**
@@ -903,11 +1227,17 @@ class ClientController extends Controller
      */
     private function isPaymentSMS($message)
     {
-        $keywords = ['FCFA', 'XOF', 'mtn', 'moov', 'orange', 'transaction', 'ref', 'paiement', 'transfert', 'mobile money', 'money', 'montant', 'reçu', 'solde'];
-        $message = strtolower($message);
+        $keywords = [
+            'FCFA', 'XOF', 'mtn', 'moov', 'orange', 
+            'transaction', 'ref', 'paiement', 'transfert', 
+            'mobile money', 'money', 'montant', 'reçu',
+            'solde', 'envoye', 'recu', 'agent'
+        ];
+        
+        $lowerMessage = strtolower($message);
         
         foreach ($keywords as $keyword) {
-            if (strpos($message, strtolower($keyword)) !== false) {
+            if (strpos($lowerMessage, strtolower($keyword)) !== false) {
                 return true;
             }
         }
@@ -915,7 +1245,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Analyser le SMS pour détecter un paiement (AMÉLIORÉ)
+     * Analyser le SMS pour détecter un paiement
      */
     private function parsePaymentSMS($message, $senderNumber)
     {
@@ -981,7 +1311,8 @@ class ClientController extends Controller
                 'transaction_id' => trim($matches[3]),
                 'amount' => $amount,
                 'network' => 'mtn',
-                'receiver_number' => $matches[2]
+                'receiver_number' => $matches[2],
+                'sender_phone' => $matches[2]
             ];
         }
         
@@ -1008,16 +1339,42 @@ class ClientController extends Controller
     }
 
     /**
-     * Parser les SMS Moov Money (AMÉLIORÉ)
+     * Parser les SMS Moov Money
      */
     private function parseMoovSMS($message)
     {
-        Log::info("🔍 Analyse Moov SMS: " . substr($message, 0, 100));
+        Log::info("🔍 Analyse Moov SMS: " . substr($message, 0, 80));
 
-        // Pattern pour réception d'argent avec Ref
-        if (preg_match('/Vous avez recu (\d+(?:[.,;\s]\d+)*)\s*FCFA.*?Ref\s*:?\s*([A-Z0-9]+)/i', $message, $matches)) {
-            $amount = floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[1]));
-            Log::info("✅ Moov pattern 1 - Montant: {$amount}, Ref: " . $matches[2]);
+        // PATTERN 1: Réception d'argent avec Agent (VOTRE FORMAT)
+        // "Vous avez recu X FCFA de l Agent Y le Date. Ref: Z"
+        if (preg_match('/Vous avez recu (\d+(?:[.,;\s]\d+)*)\s*FCFA de l\s?Agent\s+([\d\s]+)\s+le\s+[\d\/]+\s+[\d:]+\.\s*Ref\s*:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            $amount = $this->parseAmount($matches[1]);
+            $agentNumber = preg_replace('/[^0-9]/', '', $matches[2]);
+            
+            Log::info("✅ PATTERN 1 - Réception Agent", [
+                'montant' => $amount,
+                'agent' => $agentNumber,
+                'ref' => $matches[3]
+            ]);
+            
+            return [
+                'transaction_id' => trim($matches[3]),
+                'amount' => $amount,
+                'network' => 'moov',
+                'sender_phone' => $agentNumber,
+                'receiver_number' => $agentNumber
+            ];
+        }
+
+        // PATTERN 2: Réception simple avec Ref
+        if (preg_match('/Vous avez recu (\d+(?:[.,;\s]\d+)*)\s*FCFA.*?Ref\s*:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            $amount = $this->parseAmount($matches[1]);
+            
+            Log::info("✅ PATTERN 2 - Réception simple", [
+                'montant' => $amount,
+                'ref' => $matches[2]
+            ]);
+            
             return [
                 'transaction_id' => trim($matches[2]),
                 'amount' => $amount,
@@ -1025,21 +1382,36 @@ class ClientController extends Controller
             ];
         }
 
-        // Pattern pour envoi d'argent avec Ref
-        if (preg_match('/Vous avez envoye (\d+(?:[.,;\s]\d+)*)\s*FCFA.*?Ref\s*:?\s*([A-Z0-9]+)/i', $message, $matches)) {
-            $amount = floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[1]));
-            Log::info("✅ Moov pattern 2 - Montant: {$amount}, Ref: " . $matches[2]);
+        // PATTERN 3: Votre exemple spécifique - SMS du 20/11/2025
+        // "Vous avez recu 3 000 FCFA de l'agent ETS PROINF 2290195135360 le 20/11/2025 20:21:13. Motif : .Nouveau solde 10 251 FCFA. Ref : 030812360189."
+        if (preg_match('/Vous avez recu (\d+(?:[.,;\s]\d+)*)\s*FCFA de l\'agent\s+[^\d]*(\d+).*?Ref\s*:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            $amount = $this->parseAmount($matches[1]);
+            $agentNumber = $matches[2];
+            
+            Log::info("✅ PATTERN 3 - Format PROINF", [
+                'montant' => $amount,
+                'agent' => $agentNumber,
+                'ref' => $matches[3]
+            ]);
+            
             return [
-                'transaction_id' => trim($matches[2]),
+                'transaction_id' => trim($matches[3]),
                 'amount' => $amount,
-                'network' => 'moov'
+                'network' => 'moov',
+                'sender_phone' => $agentNumber,
+                'receiver_number' => $agentNumber
             ];
         }
 
-        // Pattern pour paiement avec Txn ID
+        // PATTERN 4: Paiement avec Txn ID
         if (preg_match('/Txn ID:\s*([A-Z0-9]+).*?paye\s*(\d+(?:[.,;\s]\d+)*)\s*FCFA/i', $message, $matches)) {
-            $amount = floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[2]));
-            Log::info("✅ Moov pattern 3 - Montant: {$amount}, Txn ID: " . $matches[1]);
+            $amount = $this->parseAmount($matches[2]);
+            
+            Log::info("✅ PATTERN 4 - Paiement Txn ID", [
+                'montant' => $amount,
+                'txn_id' => $matches[1]
+            ]);
+            
             return [
                 'transaction_id' => trim($matches[1]),
                 'amount' => $amount,
@@ -1047,10 +1419,15 @@ class ClientController extends Controller
             ];
         }
 
-        // Pattern générique pour Moov avec Ref à la fin
-        if (preg_match('/(\d+(?:[.,;\s]\d+)*)\s*FCFA.*?Ref\s*:?\s*([A-Z0-9]{10,20})/i', $message, $matches)) {
-            $amount = floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[1]));
-            Log::info("✅ Moov pattern 4 - Montant: {$amount}, Ref: " . $matches[2]);
+        // PATTERN 5: Recherche générique de montant + Ref
+        if (preg_match('/(\d+(?:[.,;\s]\d+)*)\s*FCFA.*?Ref\s*:\s*([A-Z0-9]{8,20})/i', $message, $matches)) {
+            $amount = $this->parseAmount($matches[1]);
+            
+            Log::info("✅ PATTERN 5 - Générique", [
+                'montant' => $amount,
+                'ref' => $matches[2]
+            ]);
+            
             return [
                 'transaction_id' => trim($matches[2]),
                 'amount' => $amount,
@@ -1060,6 +1437,16 @@ class ClientController extends Controller
 
         Log::warning("❌ Aucun pattern Moov reconnu");
         return null;
+    }
+
+    /**
+     * Parser le montant
+     */
+    private function parseAmount($amountString)
+    {
+        // Nettoyer le montant: "1 064.00" -> 1064.00, "1;064.00" -> 1064.00
+        $cleaned = str_replace([' ', ',', ';', "'"], '', $amountString);
+        return floatval($cleaned);
     }
 
     /**
@@ -1258,19 +1645,29 @@ class ClientController extends Controller
     }
 
     /**
-     * API pour forcer la synchronisation manuelle (pour debug)
+     * API pour forcer la synchronisation manuelle
      */
     public function forceSyncSMS(Request $request)
     {
         try {
+            Log::info("🔄 SYNCHRONISATION MANUELLE DEMARRÉE");
             $result = $this->syncAllSMSFiles();
+            
+            // Compter les SMS dans la base
+            $smsCount = SMSTransaction::count();
+            $recentSMS = SMSTransaction::where('sms_received_at', '>=', now()->subDays(1))->count();
             
             return response()->json([
                 'success' => true,
                 'message' => $result['message'],
-                'imported' => $result['imported']
+                'imported' => $result['imported'],
+                'stats' => [
+                    'total_sms' => $smsCount,
+                    'recent_sms' => $recentSMS
+                ]
             ]);
         } catch (\Exception $e) {
+            Log::error('💥 Erreur sync manuelle: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur: ' . $e->getMessage()
