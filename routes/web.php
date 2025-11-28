@@ -85,10 +85,12 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/order/{id}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form');
     Route::post('/order/{id}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process');
     
-    // NOUVELLE ROUTE WEBHOOK POUR TRACCAR SMS GATEWAY
-    Route::post('/sms-webhook', [ClientController::class, 'receiveSMSWebhook'])->name('client.sms.webhook');
-    
     Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
+
+// Routes SMS (accessibles sans auth pour PC Sync)
+Route::post('/client/sync-pcsync', [ClientController::class, 'syncWithPCSync']);
+Route::post('/client/sms-webhook', [ClientController::class, 'receiveSMSWebhook']);
+Route::post('/client/sync-mobiletrans', [ClientController::class, 'manualSync']);

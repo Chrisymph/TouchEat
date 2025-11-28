@@ -9,7 +9,6 @@ class SMSTransaction extends Model
 {
     use HasFactory;
 
-    // SPÉCIFIER EXPLICITEMENT LE NOM DE LA TABLE
     protected $table = 'sms_transactions';
 
     protected $fillable = [
@@ -31,9 +30,44 @@ class SMSTransaction extends Model
         'amount' => 'decimal:2'
     ];
 
+    // Valeurs par défaut pour éviter les erreurs
+    protected $attributes = [
+        'transaction_id' => 'N/A',
+        'network' => 'unknown',
+        'receiver_number' => 'N/A',
+        'status' => 'received'
+    ];
+
     public function order()
     {
         return $this->belongsTo(Order::class);
+    }
+
+    /**
+     * Boot method pour s'assurer que toutes les valeurs requises sont définies
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            // S'assurer que toutes les colonnes requises ont une valeur
+            if (empty($model->transaction_id)) {
+                $model->transaction_id = 'N/A';
+            }
+            if (empty($model->network)) {
+                $model->network = 'unknown';
+            }
+            if (empty($model->receiver_number)) {
+                $model->receiver_number = 'N/A';
+            }
+            if (empty($model->status)) {
+                $model->status = 'received';
+            }
+            if (empty($model->sms_received_at)) {
+                $model->sms_received_at = now();
+            }
+        });
     }
 
     /**
@@ -43,7 +77,7 @@ class SMSTransaction extends Model
     {
         return self::where('transaction_id', $transactionId)
                   ->where('network', $network)
-                  ->where('status', 'pending')
+                  ->where('status', 'received')
                   ->first();
     }
 
@@ -54,7 +88,7 @@ class SMSTransaction extends Model
     {
         $query = self::where('transaction_id', $transactionId)
             ->where('network', $network)
-            ->where('status', 'pending')
+            ->where('status', 'received')
             ->where('sms_received_at', '>=', now()->subHours(24));
 
         if ($phoneNumber) {
@@ -77,7 +111,24 @@ class SMSTransaction extends Model
      */
     private static function cleanPhoneForComparison($phone)
     {
-        return preg_replace('/[^0-9]/', '', $phone);
+        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Gérer les numéros avec indicatif 225
+        if (strlen($cleaned) === 12 && substr($cleaned, 0, 3) === '225') {
+            $cleaned = '0' . substr($cleaned, 3);
+        }
+        
+        // Gérer les numéros avec indicatif +225
+        if (strlen($cleaned) === 13 && substr($cleaned, 0, 4) === '2250') {
+            $cleaned = '0' . substr($cleaned, 4);
+        }
+        
+        // S'assurer d'avoir un format 10 chiffres
+        if (strlen($cleaned) === 9) {
+            $cleaned = '0' . $cleaned;
+        }
+        
+        return $cleaned;
     }
 
     /**
@@ -87,7 +138,7 @@ class SMSTransaction extends Model
     {
         $query = self::where('transaction_id', $transactionId)
             ->where('network', $network)
-            ->where('status', 'pending')
+            ->where('status', 'received')
             ->where('sms_received_at', '>=', now()->subHours(24));
 
         if ($amount !== null) {
@@ -119,7 +170,7 @@ class SMSTransaction extends Model
      */
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where('status', 'received');
     }
 
     /**
@@ -159,7 +210,7 @@ class SMSTransaction extends Model
      */
     public function markAsExpired()
     {
-        if ($this->status === 'pending' && $this->isExpired()) {
+        if ($this->status === 'received' && $this->isExpired()) {
             $this->update(['status' => 'expired']);
         }
     }
@@ -170,8 +221,33 @@ class SMSTransaction extends Model
     public static function getUnassociatedTransactions()
     {
         return self::whereNull('order_id')
-                  ->where('status', 'pending')
+                  ->where('status', 'received')
                   ->where('sms_received_at', '>=', now()->subHours(24))
                   ->get();
+    }
+
+    /**
+     * Obtenir les statistiques des SMS
+     */
+    public static function getStats()
+    {
+        return [
+            'total' => self::count(),
+            'pending' => self::where('status', 'received')->count(),
+            'used' => self::where('status', 'used')->count(),
+            'expired' => self::where('status', 'expired')->count(),
+            'today' => self::whereDate('created_at', today())->count(),
+        ];
+    }
+
+    /**
+     * Rechercher par ID de transaction dans le message (nouvelle méthode)
+     */
+    public static function findByTransactionIdInMessage($transactionId)
+    {
+        return self::where('message', 'LIKE', '%' . $transactionId . '%')
+                  ->where('status', 'received')
+                  ->where('sms_received_at', '>=', now()->subHours(24))
+                  ->first();
     }
 }
