@@ -18,12 +18,8 @@ class SyncSMSFiles extends Command
         try {
             $clientController = new ClientController();
             
-            // Utiliser la réflexion pour appeler la méthode privée
-            $reflection = new \ReflectionClass($clientController);
-            $method = $reflection->getMethod('syncAllSMSFiles');
-            $method->setAccessible(true);
-            
-            $result = $method->invoke($clientController);
+            // Appeler directement la méthode publique
+            $result = $clientController->syncAllSMSFiles();
             
             $this->info("✅ {$result['message']}");
             Log::info("Synchronisation automatique SMS: {$result['message']}");

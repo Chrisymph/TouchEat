@@ -53,8 +53,8 @@ class SMSTransaction extends Model
         static::creating(function ($model) {
             // S'assurer que toutes les colonnes requises ont une valeur
             if (empty($model->transaction_id) || $model->transaction_id === 'N/A') {
-                // Essayer d'extraire le transaction_id du message
-                $transactionId = self::extractTransactionIdFromMessage($model->message);
+                // Essayer d'extraire le transaction_id du message selon le réseau
+                $transactionId = self::extractTransactionIdFromMessage($model->message, $model->network);
                 $model->transaction_id = $transactionId ?: 'N/A';
             }
             
@@ -85,17 +85,113 @@ class SMSTransaction extends Model
     }
 
     /**
-     * Extraire le transaction_id du message
+     * Extraire le transaction_id du message selon le réseau - CORRIGÉ
      */
-    private static function extractTransactionIdFromMessage($message)
+    private static function extractTransactionIdFromMessage($message, $network = null)
     {
-        // Pattern pour Moov Money Ref
+        // Si le réseau est connu, utiliser la méthode spécifique
+        if ($network) {
+            switch ($network) {
+                case 'mtn':
+                    return self::extractMTNTransactionId($message);
+                case 'moov':
+                    return self::extractMoovTransactionId($message);
+                case 'celtis':
+                    return self::extractCeltisTransactionId($message);
+            }
+        }
+
+        // Sinon, détecter automatiquement
+        $detectedNetwork = self::detectNetworkFromMessage($message, '');
+        
+        switch ($detectedNetwork) {
+            case 'mtn':
+                return self::extractMTNTransactionId($message);
+            case 'moov':
+                return self::extractMoovTransactionId($message);
+            case 'celtis':
+                return self::extractCeltisTransactionId($message);
+            default:
+                return self::extractGenericTransactionId($message);
+        }
+    }
+
+    /**
+     * Extraire l'ID de transaction pour MTN - CORRIGÉ
+     */
+    private static function extractMTNTransactionId($message)
+    {
+        // Priorité 1: Transaction ID
+        if (preg_match('/Transaction\s*ID\s*:?\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        // Priorité 2: ID de la transaction
+        if (preg_match('/ID\s+de\s+la\s+transaction\s*:?\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        // Priorité 3: ID (format court)
+        if (preg_match('/\bID\s*:?\s*([A-Z0-9]{8,15})\b/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        // Fallback: Ref
+        if (preg_match('/Ref\.? :?\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extraire l'ID de transaction pour Moov - CORRIGÉ
+     */
+    private static function extractMoovTransactionId($message)
+    {
+        // Priorité 1: Ref (pour Moov)
         if (preg_match('/Ref\s*:?\s*([A-Z0-9]{8,20})/i', $message, $matches)) {
             return trim($matches[1]);
         }
         
-        // Pattern pour Txn ID
+        // Priorité 2: Txn ID
         if (preg_match('/Txn ID:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extraire l'ID de transaction pour Celtis - CORRIGÉ (garder les majuscules)
+     */
+    private static function extractCeltisTransactionId($message)
+    {
+        // Priorité 1: REF (en majuscules pour Celtis)
+        if (preg_match('/REF\s*:?\s*([A-Z0-9]{8,20})/i', $message, $matches)) {
+            return trim($matches[1]); // Garder les majuscules
+        }
+        
+        // Priorité 2: TransactionID (une seule occurrence)
+        if (preg_match('/TransactionID\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]); // Garder les majuscules
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extraire l'ID de transaction générique
+     */
+    private static function extractGenericTransactionId($message)
+    {
+        // Pattern pour Ref générique
+        if (preg_match('/Ref\s*:?\s*([A-Z0-9]{8,20})/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        // Pattern pour Transaction ID générique
+        if (preg_match('/Transaction\s*ID\s*:?\s*([A-Z0-9]+)/i', $message, $matches)) {
             return trim($matches[1]);
         }
         
@@ -117,16 +213,23 @@ class SMSTransaction extends Model
             return 'moov';
         }
         
-        if (strpos($message, 'orange') !== false) {
-            return 'orange';
+        if (strpos($message, 'celtis') !== false || strpos($message, 'orange') !== false) {
+            return 'celtis';
         }
         
         // Détection par expéditeur
-        if (strpos($senderNumber, 'moov') !== false) {
+        $cleanSender = strtolower($senderNumber);
+        if (strpos($cleanSender, 'moov') !== false) {
             return 'moov';
         }
+        if (strpos($cleanSender, 'celtiiscash') !== false) {
+            return 'celtis';
+        }
+        if (strpos($cleanSender, 'mtn') !== false) {
+            return 'mtn';
+        }
         
-        return 'moov'; // Par défaut
+        return 'unknown';
     }
 
     /**
@@ -134,7 +237,13 @@ class SMSTransaction extends Model
      */
     private static function extractAmountFromMessage($message)
     {
+        // Pattern pour FCFA
         if (preg_match('/(\d+(?:[.,;\s]\d+)*)\s*FCFA/i', $message, $matches)) {
+            return floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[1]));
+        }
+        
+        // Pattern pour F (Celtis)
+        if (preg_match('/(\d+(?:[.,;\s]\d+)*)\s*F(?!CFA)/i', $message, $matches)) {
             return floatval(str_replace([' ', ',', ';'], ['', '.', '.'], $matches[1]));
         }
         

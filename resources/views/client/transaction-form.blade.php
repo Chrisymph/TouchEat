@@ -39,7 +39,7 @@
                                 <option value="">Choisissez votre réseau...</option>
                                 <option value="mtn">MTN Money</option>
                                 <option value="moov">Moov Money</option>
-                                <option value="orange">Orange Money</option>
+                                <option value="celtis">Celtis Cash</option>
                             </select>
                         </div>
 
@@ -49,7 +49,7 @@
                                 Numéro utilisé pour le paiement *
                             </label>
                             <input type="tel" name="phone_number" required
-                                   placeholder="ex: 07 12 34 56 78"
+                                   placeholder="ex: 01 67 12 56 78"
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <p class="text-xs text-gray-500 mt-1">Doit correspondre au numéro utilisé pour le paiement</p>
                         </div>
@@ -60,7 +60,7 @@
                                 ID de Transaction *
                             </label>
                             <input type="text" name="transaction_id" required
-                                   placeholder="Ex: TX123456ABC"
+                                   placeholder="Ex: 012569878269"
                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <p class="text-sm text-gray-500 mt-1">
                                 Trouvez cet ID dans le SMS de confirmation reçu
@@ -102,7 +102,7 @@
                 <h3 class="font-semibold text-blue-800 mb-2">📋 Où trouver l'ID de Transaction ?</h3>
                 <ul class="text-sm text-blue-700 space-y-1">
                     <li>• Dans le SMS de confirmation de paiement</li>
-                    <li>• Cherchez un code comme <strong>TX123456</strong> ou <strong>REF789ABC</strong></li>
+                    <li>• Cherchez un code comme <strong>012569878269</strong> ou <strong>REF789ABC</strong></li>
                     <li>• Généralement 8-12 caractères (chiffres et lettres)</li>
                     <li>• <strong>Attendez que le SMS arrive</strong> avant de saisir</li>
                 </ul>
