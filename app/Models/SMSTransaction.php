@@ -177,6 +177,11 @@ class SMSTransaction extends Model
             return trim($matches[1]); // Garder les majuscules
         }
         
+        // Priorité 3: Depot recu avec REF
+        if (preg_match('/Depot recu.*?REF:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]); // Garder les majuscules
+        }
+        
         return null;
     }
 
@@ -192,6 +197,11 @@ class SMSTransaction extends Model
         
         // Pattern pour Transaction ID générique
         if (preg_match('/Transaction\s*ID\s*:?\s*([A-Z0-9]+)/i', $message, $matches)) {
+            return trim($matches[1]);
+        }
+        
+        // Pattern pour Depot recu générique
+        if (preg_match('/Depot recu.*?REF:\s*([A-Z0-9]+)/i', $message, $matches)) {
             return trim($matches[1]);
         }
         

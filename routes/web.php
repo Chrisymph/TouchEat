@@ -79,18 +79,27 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
     Route::post('/order/{orderId}/add-item', [ClientController::class, 'addToExistingOrder'])->name('client.order.add-item');
     
-    // Routes pour le paiement USSD
-    Route::get('/order/{id}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd');
+    // Routes pour le paiement USSD - NOUVELLES ROUTES AVEC PAYMENT ID OPTIONNEL
+    Route::get('/order/{order}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd');
+    Route::get('/order/{order}/{payment}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd.payment');
     
-    // Routes pour le paiement avec vérification SMS
-    Route::get('/order/{id}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form');
-    Route::post('/order/{id}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process');
+    // Routes pour le paiement avec vérification SMS - NOUVELLES ROUTES AVEC PAYMENT ID OPTIONNEL
+    Route::get('/order/{order}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form');
+    Route::get('/order/{order}/{payment}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form.payment');
+    Route::post('/order/{order}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process');
+    Route::post('/order/{order}/{payment}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process.payment');
     
     Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
 
     // Routes pour la synchronisation SMS
     Route::post('/force-sync-sms', [ClientController::class, 'forceSyncSMS'])->name('client.sms.force-sync');
+
+    // Routes pour le panier
+Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
+Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
+Route::post('/cart/clear', [ClientController::class, 'clearCart'])->name('client.cart.clear');
+
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });

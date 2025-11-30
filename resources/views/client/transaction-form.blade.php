@@ -6,6 +6,11 @@
     <title>Confirmation Paiement - Table {{ $tableNumber }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header identique à ussd-command -->
@@ -13,7 +18,13 @@
         <div class="container mx-auto px-4 py-6">
             <div class="text-center">
                 <h1 class="text-3xl font-bold mb-2">Confirmation de Paiement</h1>
-                <p class="text-lg">Commande #{{ $order->id }} - {{ number_format($order->total, 0, ',', ' ') }} FCFA</p>
+                <p class="text-lg">
+                    Commande #{{ $order->id }} - 
+                    {{ number_format($amountToPay, 0, ',', ' ') }} FCFA
+                    @if(isset($paymentId))
+                        <span class="text-yellow-300">(Paiement additionnel)</span>
+                    @endif
+                </p>
             </div>
         </div>
     </div>
@@ -23,6 +34,18 @@
             <!-- Carte de confirmation -->
             <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
                 <h2 class="text-xl font-bold text-gray-800 mb-4">✅ Vérification de Paiement</h2>
+                
+                @if(isset($paymentId))
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div class="flex items-center">
+                        <div class="text-blue-600 mr-2">ℹ️</div>
+                        <div class="text-sm text-blue-700">
+                            <strong>Paiement additionnel :</strong> Vous payez seulement le montant des nouveaux articles ajoutés à votre commande existante.
+                        </div>
+                    </div>
+                </div>
+                @endif
+                
                 <p class="text-gray-600 mb-4">Veuillez saisir les informations exactes de votre transaction :</p>
                 
                 <form id="transactionForm">
@@ -68,6 +91,25 @@
                         </div>
                     </div>
 
+                    <!-- Montant à vérifier -->
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-4">
+                        <div class="flex justify-between items-center text-lg font-semibold">
+                            <span class="text-blue-700">
+                                @if(isset($paymentId))
+                                    Montant des nouveaux articles:
+                                @else
+                                    Montant à vérifier:
+                                @endif
+                            </span>
+                            <span class="text-blue-800">{{ number_format($amountToPay, 0, ',', ' ') }} FCFA</span>
+                        </div>
+                        @if(isset($paymentId))
+                        <p class="text-xs text-blue-600 mt-2 text-center">
+                            ⚠️ Ce montant correspond seulement aux nouveaux articles ajoutés
+                        </p>
+                        @endif
+                    </div>
+
                     <!-- Message d'information important -->
                     <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
                         <div class="flex items-start">
@@ -85,10 +127,17 @@
                     </div>
 
                     <div class="mt-6 flex gap-3">
-                        <a href="{{ route('client.order.ussd', $order->id) }}" 
-                           class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold text-center transition-colors">
-                            Retour
-                        </a>
+                        @if(isset($paymentId))
+                            <a href="{{ route('client.order.ussd.payment', ['order' => $order->id, 'payment' => $paymentId]) }}" 
+                               class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold text-center transition-colors">
+                                Retour
+                            </a>
+                        @else
+                            <a href="{{ route('client.order.ussd', $order->id) }}" 
+                               class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold text-center transition-colors">
+                                Retour
+                            </a>
+                        @endif
                         <button type="submit" 
                                 class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors">
                             Vérifier le Paiement
@@ -122,7 +171,13 @@
             submitButton.disabled = true;
 
             try {
-                const response = await fetch('{{ route("client.payment.process", $order->id) }}', {
+                @if(isset($paymentId))
+                    const url = '{{ route("client.payment.process.payment", ["order" => $order->id, "payment" => $paymentId]) }}';
+                @else
+                    const url = '{{ route("client.payment.process", $order->id) }}';
+                @endif
+
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',

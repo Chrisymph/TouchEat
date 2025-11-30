@@ -18,6 +18,10 @@
             transform: translateY(-5px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -93,7 +97,7 @@
 
                     <h1 class="text-4xl font-bold text-gray-800 text-center flex-1">
                         Notre Menu
-                        <!-- NOUVEAU : Indicateur d'ajout à une commande existante -->
+                        <!-- Indicateur d'ajout à une commande existante -->
                         <template x-if="isAddingToExistingOrder">
                             <span class="text-lg text-blue-600 block mt-2">
                                 ➕ Ajout à la commande #<span x-text="currentOrderId"></span>
@@ -177,7 +181,8 @@
                                         <template x-if="item.available">
                                             <button 
                                                 @click="addToCart(item)" 
-                                                class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center space-x-2 min-w-[120px] justify-center">
+                                                :class="isAddingToExistingOrder ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'"
+                                                class="text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center space-x-2 min-w-[120px] justify-center">
                                                 <span class="text-lg">+</span>
                                                 <span>
                                                     <template x-if="isAddingToExistingOrder">Ajouter</template>
@@ -217,7 +222,7 @@
                     </button>
                     <h2 class="text-3xl font-bold text-gray-800 text-center">
                         Panier <span x-text="cartCount > 0 ? `(${cartCount} article${cartCount > 1 ? 's' : ''})` : ''"></span>
-                        <!-- NOUVEAU : Indicateur d'ajout à une commande existante -->
+                        <!-- Indicateur d'ajout à une commande existante -->
                         <template x-if="isAddingToExistingOrder">
                             <span class="text-lg text-blue-600 block mt-2">
                                 ➕ Ajout à la commande #<span x-text="currentOrderId"></span>
@@ -245,7 +250,7 @@
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <!-- Cart Items -->
                         <div class="lg:col-span-2 space-y-4">
-                            <template x-for="item in cartItems" :key="item.id">
+                            <template x-for="item in cartItems" :key="item.cart_key">
                                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                                     <div class="flex justify-between items-start mb-4">
                                         <div class="flex-1">
@@ -265,13 +270,13 @@
                                     
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center space-x-3">
-                                            <button @click="updateQuantity(item.id, item.quantity - 1)" 
+                                            <button @click="updateQuantity(item.id, item.quantity - 1, item.order_id)" 
                                                     class="bg-gray-100 text-gray-700 w-10 h-10 rounded-lg hover:bg-gray-200 transition-colors font-bold">
                                                 -
                                             </button>
                                             <span class="text-xl font-semibold w-8 text-center text-gray-800" 
                                                   x-text="item.quantity"></span>
-                                            <button @click="updateQuantity(item.id, item.quantity + 1)" 
+                                            <button @click="updateQuantity(item.id, item.quantity + 1, item.order_id)" 
                                                     class="bg-gray-100 text-gray-700 w-10 h-10 rounded-lg hover:bg-gray-200 transition-colors font-bold">
                                                 +
                                             </button>
@@ -280,7 +285,7 @@
                                         <div class="text-right">
                                             <div class="text-xl font-bold text-gray-800" 
                                                  x-text="formatPrice(item.price * item.quantity)"></div>
-                                            <button @click="updateQuantity(item.id, 0)" 
+                                            <button @click="updateQuantity(item.id, 0, item.order_id)" 
                                                     class="text-red-500 hover:text-red-700 text-sm font-semibold mt-1 transition-colors duration-300">
                                                 Supprimer
                                             </button>
@@ -296,7 +301,7 @@
                                 <h3 class="text-2xl font-bold text-gray-800 mb-4">Récapitulatif</h3>
                                 
                                 <div class="space-y-3 mb-4">
-                                    <template x-for="item in cartItems" :key="item.id">
+                                    <template x-for="item in cartItems" :key="item.cart_key">
                                         <div class="flex justify-between text-sm">
                                             <span class="text-gray-600" x-text="`${item.name} x${item.quantity}`"></span>
                                             <span class="font-semibold" x-text="formatPrice(item.price * item.quantity)"></span>
@@ -315,7 +320,7 @@
                                     <!-- Boutons avec les bonnes fonctions -->
                                     <template x-if="isAddingToExistingOrder">
                                         <button @click="showAddToOrderConfirmationModal = true" 
-                                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                                class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                             ➕ Ajouter à la commande existante
                                         </button>
                                     </template>
@@ -329,6 +334,12 @@
                                     <button @click="showDeliveryModal = true" 
                                             class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                         🚗 Livraison
+                                    </button>
+
+                                    <!-- Bouton pour vider le panier -->
+                                    <button @click="clearCart()" 
+                                            class="w-full bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all duration-300">
+                                        🗑️ Vider le panier
                                     </button>
                                 </div>
                             </div>
@@ -391,7 +402,7 @@
             </div>
         </template>
 
-        <!-- Modal de paiement pour nouvelle commande - MODIFIÉ avec sélection réseau -->
+        <!-- Modal de paiement pour nouvelle commande -->
         <template x-if="showPaymentModal">
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
@@ -457,6 +468,19 @@
                     <p class="text-gray-600 mb-6">Vous allez ajouter ces articles à votre commande en cours #<span x-text="currentOrderId"></span></p>
                     
                     <div class="space-y-4">
+                        <!-- Sélection du réseau pour l'ajout à une commande existante -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Réseau Mobile Money <span class="text-red-500">*</span>
+                            </label>
+                            <select x-model="selectedNetwork" 
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="mtn">MTN Money</option>
+                                <option value="moov">Moov Money</option>
+                                <option value="celtis">Celtis Money</option>
+                            </select>
+                        </div>
+                        
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Numéro de téléphone <span class="text-red-500">*</span>
@@ -469,9 +493,12 @@
                         
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div class="flex justify-between items-center text-lg font-semibold">
-                                <span class="text-gray-700">Total à payer</span>
+                                <span class="text-gray-700">Total des nouveaux articles</span>
                                 <span class="text-gray-800" x-text="formatPrice(cartTotal)"></span>
                             </div>
+                            <p class="text-xs text-gray-500 mt-2 text-center">
+                                ⚠️ Seul le montant des nouveaux articles sera demandé pour le paiement
+                            </p>
                         </div>
                     </div>
                     
@@ -481,13 +508,13 @@
                             Annuler
                         </button>
                         <button @click="addToExistingOrder()" 
-                                :disabled="!phoneNumber.trim() || isProcessingPayment"
-                                :class="!phoneNumber.trim() || isProcessingPayment ? 
-                                    'bg-blue-400 cursor-not-allowed' : 
-                                    'bg-blue-600 hover:bg-blue-700'"
+                                :disabled="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment"
+                                :class="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment ? 
+                                    'bg-green-400 cursor-not-allowed' : 
+                                    'bg-green-600 hover:bg-green-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
                             <template x-if="isProcessingPayment">Traitement...</template>
-                            <template x-if="!isProcessingPayment">Ajouter à la commande</template>
+                            <template x-if="!isProcessingPayment">Payer les nouveaux articles</template>
                         </button>
                     </div>
                 </div>
@@ -502,6 +529,19 @@
                     <p class="text-gray-600 mb-6">Veuillez fournir les informations pour la livraison</p>
                     
                     <div class="space-y-4">
+                        <!-- Sélection du réseau pour la livraison -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Réseau Mobile Money <span class="text-red-500">*</span>
+                            </label>
+                            <select x-model="selectedNetwork" 
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="mtn">MTN Money</option>
+                                <option value="moov">Moov Money</option>
+                                <option value="celtis">Celtis Money</option>
+                            </select>
+                        </div>
+                        
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Numéro de téléphone <span class="text-red-500">*</span>
@@ -545,8 +585,8 @@
                             Annuler
                         </button>
                         <button @click="placeOrder('livraison')" 
-                                :disabled="!phoneNumber.trim() || !deliveryAddress.trim() || isProcessingPayment"
-                                :class="!phoneNumber.trim() || !deliveryAddress.trim() || isProcessingPayment ? 
+                                :disabled="!phoneNumber.trim() || !deliveryAddress.trim() || !selectedNetwork || isProcessingPayment"
+                                :class="!phoneNumber.trim() || !deliveryAddress.trim() || !selectedNetwork || isProcessingPayment ? 
                                     'bg-green-400 cursor-not-allowed' : 
                                     'bg-green-600 hover:bg-green-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
@@ -574,31 +614,18 @@
             phoneNumber: '',
             deliveryAddress: '',
             deliveryNotes: '',
-            selectedNetwork: 'mtn', // NOUVEAU : Réseau par défaut
+            selectedNetwork: 'mtn',
             isProcessingPayment: false,
             hasActiveOrder: @json($currentOrder !== null),
             currentOrder: @json($currentOrder),
 
-            // NOUVEAU : Variables pour l'ajout à une commande existante
-            isAddingToExistingOrder: false,
-            currentOrderId: null,
+            // Variables pour l'ajout à une commande existante
+            isAddingToExistingOrder: @json($isAddingToExisting),
+            currentOrderId: @json($existingOrderId),
 
             init() {
                 this.calculateCartTotal();
-                this.checkForExistingOrder();
-            },
-
-            // NOUVEAU : Vérifier si on ajoute à une commande existante
-            checkForExistingOrder() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const orderId = urlParams.get('order_id') || localStorage.getItem('currentOrderId');
-                
-                if (orderId) {
-                    this.isAddingToExistingOrder = true;
-                    this.currentOrderId = orderId;
-                    localStorage.setItem('currentOrderId', orderId);
-                    localStorage.setItem('addingToExistingOrder', 'true');
-                }
+                console.log('Initialisation - Ajout à commande existante:', this.isAddingToExistingOrder, 'ID:', this.currentOrderId);
             },
 
             get filteredMenu() {
@@ -623,10 +650,12 @@
                         quantity: 1
                     };
 
-                    // NOUVEAU : Ajouter l'ID de commande si on ajoute à une commande existante
+                    // Ajouter l'ID de commande si on ajoute à une commande existante
                     if (this.isAddingToExistingOrder && this.currentOrderId) {
                         requestData.order_id = this.currentOrderId;
                     }
+
+                    console.log('Ajout au panier:', requestData);
 
                     const response = await axios.post('{{ route("client.cart.add") }}', requestData);
 
@@ -635,20 +664,36 @@
                         this.cartItems = response.data.cart_items || [];
                         this.calculateCartTotal();
                         
-                        this.showToast('Article ajouté au panier!');
+                        this.showToast(response.data.message || 'Article ajouté au panier!');
+                    } else {
+                        this.showToast(response.data.message || 'Erreur lors de l\'ajout au panier', 'error');
                     }
                 } catch (error) {
                     console.error('Erreur lors de l\'ajout au panier:', error);
-                    this.showToast('Erreur lors de l\'ajout au panier', 'error');
+                    let errorMessage = 'Erreur lors de l\'ajout au panier';
+                    
+                    if (error.response && error.response.data && error.response.data.message) {
+                        errorMessage = error.response.data.message;
+                    } else if (error.response && error.response.data && error.response.data.error) {
+                        errorMessage = error.response.data.error;
+                    }
+                    
+                    this.showToast(errorMessage, 'error');
                 }
             },
 
-            async updateQuantity(itemId, newQuantity) {
+            async updateQuantity(itemId, newQuantity, orderId = null) {
                 try {
-                    const response = await axios.post('{{ route("client.cart.update") }}', {
+                    const requestData = {
                         menu_item_id: itemId,
                         quantity: newQuantity
-                    });
+                    };
+
+                    if (orderId) {
+                        requestData.order_id = orderId;
+                    }
+
+                    const response = await axios.post('{{ route("client.cart.update") }}', requestData);
 
                     if (response.data.success) {
                         this.cartCount = response.data.cart_count;
@@ -657,6 +702,8 @@
                         
                         if (newQuantity === 0) {
                             this.showToast('Article supprimé du panier');
+                        } else {
+                            this.showToast('Quantité mise à jour');
                         }
                     }
                 } catch (error) {
@@ -665,10 +712,15 @@
                 }
             },
 
-            // NOUVEAU : Fonction pour ajouter à une commande existante
+            // Fonction pour ajouter à une commande existante
             async addToExistingOrder() {
                 if (!this.phoneNumber.trim()) {
                     this.showToast('Veuillez entrer votre numéro de téléphone', 'error');
+                    return;
+                }
+
+                if (!this.selectedNetwork) {
+                    this.showToast('Veuillez sélectionner un réseau Mobile Money', 'error');
                     return;
                 }
 
@@ -678,6 +730,7 @@
                     const response = await axios.post('{{ route("client.order.place") }}', {
                         order_type: 'sur_place',
                         phone_number: this.phoneNumber,
+                        network: this.selectedNetwork,
                         existing_order_id: this.currentOrderId
                     });
 
@@ -692,9 +745,6 @@
                         
                         if (response.data.redirect_url) {
                             setTimeout(() => {
-                                // Nettoyer le localStorage
-                                localStorage.removeItem('currentOrderId');
-                                localStorage.removeItem('addingToExistingOrder');
                                 window.location.href = response.data.redirect_url;
                             }, 1500);
                         }
@@ -726,8 +776,8 @@
                     return;
                 }
 
-                // Validation du réseau pour les commandes sur place
-                if (orderType === 'sur_place' && !this.selectedNetwork) {
+                // Validation du réseau pour tous les types de commande
+                if (!this.selectedNetwork) {
                     this.showToast('Veuillez sélectionner un réseau Mobile Money', 'error');
                     return;
                 }
@@ -738,7 +788,7 @@
                     const requestData = {
                         order_type: orderType,
                         phone_number: this.phoneNumber,
-                        network: this.selectedNetwork // NOUVEAU : Ajout du réseau sélectionné
+                        network: this.selectedNetwork
                     };
 
                     // Ajouter les informations de livraison si c'est une commande en livraison
@@ -768,12 +818,7 @@
                         
                         if (response.data.redirect_url) {
                             setTimeout(() => {
-                                // Pour les commandes sur place, rediriger vers la page USSD
-                                if (orderType === 'sur_place') {
-                                    window.location.href = '{{ url("client/order") }}/' + response.data.order_id + '/ussd?network=' + this.selectedNetwork;
-                                } else {
-                                    window.location.href = response.data.redirect_url;
-                                }
+                                window.location.href = response.data.redirect_url;
                             }, 1500);
                         }
                     } else {
@@ -788,6 +833,28 @@
                     }
                 } finally {
                     this.isProcessingPayment = false;
+                }
+            },
+
+            async clearCart() {
+                try {
+                    const requestData = {};
+                    
+                    if (this.isAddingToExistingOrder && this.currentOrderId) {
+                        requestData.order_id = this.currentOrderId;
+                    }
+
+                    const response = await axios.post('{{ route("client.cart.clear") }}', requestData);
+
+                    if (response.data.success) {
+                        this.cartCount = response.data.cart_count;
+                        this.cartItems = [];
+                        this.cartTotal = 0;
+                        this.showToast('Panier vidé avec succès');
+                    }
+                } catch (error) {
+                    console.error('Erreur lors du vidage du panier:', error);
+                    this.showToast('Erreur lors du vidage du panier', 'error');
                 }
             },
 

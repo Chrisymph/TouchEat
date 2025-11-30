@@ -29,6 +29,9 @@
                         <span>Table N°{{ $tableNumber }}</span>
                         <span class="text-white/70">•</span>
                         <span class="text-white/80">Commande #{{ $order->id }}</span>
+                        @if(isset($paymentId))
+                        <span class="text-yellow-300">• Paiement additionnel</span>
+                        @endif
                     </div>
                 </div>
                 <a href="{{ route('client.dashboard') }}" 
@@ -46,17 +49,40 @@
             <div class="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-green-200">
                 <div class="text-center mb-6">
                     <div class="text-6xl mb-4">✅</div>
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Commande Confirmée!</h2>
-                    <p class="text-gray-600">Votre commande #{{ $order->id }} a été enregistrée avec succès</p>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">
+                        @if(isset($paymentId))
+                            Articles ajoutés à la commande!
+                        @else
+                            Commande Confirmée!
+                        @endif
+                    </h2>
+                    <p class="text-gray-600">
+                        @if(isset($paymentId))
+                            Vos nouveaux articles ont été ajoutés à la commande #{{ $order->id }}
+                        @else
+                            Votre commande #{{ $order->id }} a été enregistrée avec succès
+                        @endif
+                    </p>
                 </div>
                 
                 <div class="bg-gray-50 rounded-xl p-6 mb-6">
                     <div class="flex justify-between items-center text-lg">
-                        <span class="font-semibold text-gray-700">Total à payer:</span>
+                        <span class="font-semibold text-gray-700">
+                            @if(isset($paymentId))
+                                Montant des nouveaux articles:
+                            @else
+                                Total à payer:
+                            @endif
+                        </span>
                         <span class="font-bold text-2xl text-green-600">
-                            {{ number_format($order->total, 0, ',', ' ') }} FCFA
+                            {{ number_format($amountToPay, 0, ',', ' ') }} FCFA
                         </span>
                     </div>
+                    @if(isset($paymentId))
+                    <p class="text-sm text-gray-500 mt-2 text-center">
+                        ⚠️ Seul le montant des nouveaux articles est demandé pour ce paiement
+                    </p>
+                    @endif
                 </div>
             </div>
 
@@ -122,10 +148,17 @@
 
             <!-- Bouton pour saisir l'ID de transaction -->
             <div class="text-center mt-8 space-y-4">
-                <a href="{{ route('client.payment.form', $order->id) }}" 
-                   class="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
-                    ✅ J'ai payé - Saisir l'ID de Transaction
-                </a>
+                @if(isset($paymentId))
+                    <a href="{{ route('client.payment.form.payment', ['order' => $order->id, 'payment' => $paymentId]) }}" 
+                       class="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                        ✅ J'ai payé - Saisir l'ID de Transaction
+                    </a>
+                @else
+                    <a href="{{ route('client.payment.form', $order->id) }}" 
+                       class="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                        ✅ J'ai payé - Saisir l'ID de Transaction
+                    </a>
+                @endif
                 
                 <div>
                     <a href="{{ route('client.dashboard') }}" 

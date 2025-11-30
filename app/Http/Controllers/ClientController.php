@@ -36,12 +36,18 @@ class ClientController extends Controller
         $cartItems = array_values($cart);
         $cartCount = array_sum(array_column($cart, 'quantity'));
 
+        // Vérifier si on ajoute à une commande existante via URL
+        $isAddingToExisting = request()->has('order_id') && request('order_id');
+        $existingOrderId = $isAddingToExisting ? request('order_id') : null;
+
         return view('client.dashboard', [
             'tableNumber' => Auth::user()->table_number,
             'menuItems' => $menuItems,
             'currentOrder' => $currentOrder,
             'cartItems' => $cartItems,
-            'cartCount' => $cartCount
+            'cartCount' => $cartCount,
+            'isAddingToExisting' => $isAddingToExisting,
+            'existingOrderId' => $existingOrderId
         ]);
     }
 
@@ -61,13 +67,36 @@ class ClientController extends Controller
             'order_id' => 'nullable|exists:orders,id'
         ]);
 
+        // Vérifier que la commande existe et appartient à l'utilisateur
+        if ($request->order_id) {
+            $order = Order::where('id', $request->order_id)
+                ->where('table_number', Auth::user()->table_number)
+                ->first();
+            
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Commande non trouvée ou non autorisée.'
+                ], 404);
+            }
+        }
+
         $cart = session()->get('cart', []);
         $menuItem = MenuItem::find($request->menu_item_id);
 
-        if (isset($cart[$request->menu_item_id])) {
-            $cart[$request->menu_item_id]['quantity'] += $request->quantity;
+        if (!$menuItem || !$menuItem->available) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Article non disponible.'
+            ], 404);
+        }
+
+        $cartKey = $request->menu_item_id . ($request->order_id ? '_' . $request->order_id : '');
+
+        if (isset($cart[$cartKey])) {
+            $cart[$cartKey]['quantity'] += $request->quantity;
         } else {
-            $cart[$request->menu_item_id] = [
+            $cart[$cartKey] = [
                 'id' => $menuItem->id,
                 'name' => $menuItem->name,
                 'description' => $menuItem->description,
@@ -76,7 +105,8 @@ class ClientController extends Controller
                 'category' => $menuItem->category,
                 'promotion_discount' => $menuItem->promotion_discount,
                 'original_price' => $menuItem->original_price,
-                'order_id' => $request->order_id
+                'order_id' => $request->order_id,
+                'cart_key' => $cartKey
             ];
         }
 
@@ -88,7 +118,8 @@ class ClientController extends Controller
             'success' => true,
             'cart_count' => $cartCount,
             'cart_items' => array_values($cart),
-            'has_existing_order' => !empty($request->order_id)
+            'has_existing_order' => !empty($request->order_id),
+            'message' => 'Article ajouté au panier avec succès!'
         ]);
     }
 
@@ -104,16 +135,18 @@ class ClientController extends Controller
 
         $request->validate([
             'menu_item_id' => 'required|exists:menu_items,id',
-            'quantity' => 'required|integer|min:0'
+            'quantity' => 'required|integer|min:0',
+            'order_id' => 'nullable|exists:orders,id'
         ]);
 
         $cart = session()->get('cart', []);
+        $cartKey = $request->menu_item_id . ($request->order_id ? '_' . $request->order_id : '');
 
         if ($request->quantity == 0) {
-            unset($cart[$request->menu_item_id]);
+            unset($cart[$cartKey]);
         } else {
-            if (isset($cart[$request->menu_item_id])) {
-                $cart[$request->menu_item_id]['quantity'] = $request->quantity;
+            if (isset($cart[$cartKey])) {
+                $cart[$cartKey]['quantity'] = $request->quantity;
             }
         }
 
@@ -129,7 +162,8 @@ class ClientController extends Controller
             'success' => true,
             'cart_count' => $cartCount,
             'cart_total' => $cartTotal,
-            'cart_items' => array_values($cart)
+            'cart_items' => array_values($cart),
+            'message' => 'Panier mis à jour avec succès!'
         ]);
     }
 
@@ -146,7 +180,7 @@ class ClientController extends Controller
         $request->validate([
             'order_type' => 'required|in:sur_place,livraison',
             'phone_number' => 'required|string',
-            'network' => 'required_if:order_type,sur_place|in:mtn,moov,celtis',
+            'network' => 'required|in:mtn,moov,celtis',
             'existing_order_id' => 'nullable|exists:orders,id',
             'delivery_address' => 'required_if:order_type,livraison|string|max:255',
             'delivery_notes' => 'nullable|string|max:500'
@@ -161,21 +195,68 @@ class ClientController extends Controller
             ]);
         }
 
-        $total = 0;
+        // Filtrer les articles selon la commande existante
+        $filteredCart = [];
         foreach ($cart as $item) {
+            if ($request->has('existing_order_id') && $request->existing_order_id) {
+                // Si on ajoute à une commande existante, ne prendre que les articles de cette commande
+                if (isset($item['order_id']) && $item['order_id'] == $request->existing_order_id) {
+                    $filteredCart[$item['id']] = $item;
+                }
+            } else {
+                // Si nouvelle commande, ne prendre que les articles sans order_id
+                if (!isset($item['order_id'])) {
+                    $filteredCart[$item['id']] = $item;
+                }
+            }
+        }
+
+        if (empty($filteredCart)) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Aucun article valide dans le panier pour ce type de commande'
+            ]);
+        }
+
+        $total = 0;
+        foreach ($filteredCart as $item) {
             $total += $item['price'] * $item['quantity'];
         }
 
-        if ($request->order_type === 'sur_place' && $request->has('network')) {
-            session()->put('selected_network', $request->network);
-        }
+        // Stocker le réseau sélectionné dans la session
+        session()->put('selected_network', $request->network);
 
         if ($request->has('existing_order_id') && $request->existing_order_id) {
             $order = Order::where('id', $request->existing_order_id)
                 ->where('table_number', Auth::user()->table_number)
-                ->firstOrFail();
+                ->first();
 
-            foreach ($cart as $menuItemId => $item) {
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Commande non trouvée'
+                ], 404);
+            }
+
+            // CORRECTION CRITIQUE : Calculer seulement le total des nouveaux articles
+            $newItemsTotal = 0;
+            foreach ($filteredCart as $menuItemId => $item) {
+                $newItemsTotal += $item['price'] * $item['quantity'];
+            }
+
+            // Créer un nouveau paiement avec transaction_id temporaire
+            $additionalPayment = Payment::create([
+                'order_id' => $order->id,
+                'amount' => $newItemsTotal, // CORRECTION : Utiliser SEULEMENT le montant des nouveaux articles
+                'payment_method' => 'mobile_money',
+                'status' => 'en_attente',
+                'network' => $request->network,
+                'phone_number' => $request->phone_number,
+                'transaction_id' => 'pending_' . time() . '_' . rand(1000, 9999)
+            ]);
+
+            // Ajouter les articles à la commande existante
+            foreach ($filteredCart as $menuItemId => $item) {
                 $existingItem = OrderItem::where('order_id', $order->id)
                     ->where('menu_item_id', $menuItemId)
                     ->first();
@@ -195,23 +276,40 @@ class ClientController extends Controller
                 }
             }
 
+            // CORRECTION : NE PAS recalculer le total de la commande pour le paiement
+            // Garder l'ancien total + les nouveaux articles dans la base, mais le paiement additionnel
+            // doit seulement concerner les nouveaux articles
             $newTotal = OrderItem::where('order_id', $order->id)
                 ->get()
                 ->sum(function($item) {
                     return $item->unit_price * $item->quantity;
                 });
 
-            $order->total = $newTotal;
+            $order->total = $newTotal; // Mettre à jour le total dans la commande pour l'affichage
             $order->save();
 
-            session()->forget('cart');
+            // Supprimer seulement les articles de cette commande du panier
+            foreach ($cart as $key => $item) {
+                if (isset($item['order_id']) && $item['order_id'] == $request->existing_order_id) {
+                    unset($cart[$key]);
+                }
+            }
+            session()->put('cart', $cart);
+
+            // Redirection vers USSD pour paiement additionnel
+            $redirectUrl = route('client.order.ussd.payment', [
+                'order' => $order->id, 
+                'payment' => $additionalPayment->id
+            ]);
 
             return response()->json([
                 'success' => true,
                 'order_id' => $order->id,
+                'payment_id' => $additionalPayment->id,
                 'estimated_time' => $order->estimated_time,
                 'message' => 'Articles ajoutés à la commande existante avec succès!',
-                'redirect_url' => route('client.order.confirmation', $order->id)
+                'redirect_url' => $redirectUrl,
+                'amount_to_pay' => $newItemsTotal // CORRECTION : Retourner seulement le montant des nouveaux articles
             ]);
         } else {
             $order = Order::create([
@@ -226,7 +324,7 @@ class ClientController extends Controller
                 'delivery_notes' => $request->delivery_notes
             ]);
 
-            foreach ($cart as $menuItemId => $item) {
+            foreach ($filteredCart as $menuItemId => $item) {
                 OrderItem::create([
                     'order_id' => $order->id,
                     'menu_item_id' => $menuItemId,
@@ -237,11 +335,16 @@ class ClientController extends Controller
                 ]);
             }
 
-            session()->forget('cart');
+            // Supprimer seulement les articles sans order_id du panier
+            foreach ($cart as $key => $item) {
+                if (!isset($item['order_id'])) {
+                    unset($cart[$key]);
+                }
+            }
+            session()->put('cart', $cart);
 
-            $redirectUrl = $request->order_type === 'sur_place' 
-                ? route('client.order.ussd', $order->id) 
-                : route('client.order.confirmation', $order->id);
+            // Redirection vers USSD pour nouvelle commande
+            $redirectUrl = route('client.order.ussd', $order->id);
 
             return response()->json([
                 'success' => true,
@@ -256,7 +359,7 @@ class ClientController extends Controller
     /**
      * Afficher la commande USSD pour le paiement
      */
-    public function showUssdCommand($orderId)
+    public function showUssdCommand($orderId, $paymentId = null)
     {
         if (!Auth::check() || Auth::user()->role !== 'client') {
             return redirect()->route('client.auth');
@@ -274,22 +377,35 @@ class ClientController extends Controller
                      ->firstOrFail();
 
         $selectedNetwork = request()->get('network', session()->get('selected_network', 'mtn'));
-        $ussdCommand = $this->generateUssdCommand($order, $selectedNetwork);
+        
+        // CORRECTION : Si c'est un paiement additionnel, utiliser le montant du paiement
+        if ($paymentId) {
+            $payment = Payment::where('id', $paymentId)
+                ->where('order_id', $orderId)
+                ->firstOrFail();
+            $amountToPay = $payment->amount; // CORRECTION : Utiliser le montant du paiement additionnel
+        } else {
+            $amountToPay = $order->total;
+        }
+        
+        $ussdCommand = $this->generateUssdCommand($amountToPay, $selectedNetwork);
 
         return view('client.ussd-command', [
             'tableNumber' => Auth::user()->table_number,
             'order' => $order,
             'selectedNetwork' => $selectedNetwork,
-            'ussdCommand' => $ussdCommand
+            'ussdCommand' => $ussdCommand,
+            'amountToPay' => $amountToPay,
+            'paymentId' => $paymentId
         ]);
     }
 
     /**
      * Générer la commande USSD selon le réseau
      */
-    private function generateUssdCommand($order, $network)
+    private function generateUssdCommand($amount, $network)
     {
-        $totalAmount = intval($order->total);
+        $totalAmount = intval($amount);
         
         switch ($network) {
             case 'moov':
@@ -306,7 +422,7 @@ class ClientController extends Controller
     /**
      * Afficher le formulaire de saisie de l'ID de transaction
      */
-    public function showTransactionForm($orderId)
+    public function showTransactionForm($orderId, $paymentId = null)
     {
         if (!Auth::check() || Auth::user()->role !== 'client') {
             return redirect()->route('client.auth');
@@ -323,16 +439,28 @@ class ClientController extends Controller
                      ->where('table_number', Auth::user()->table_number)
                      ->firstOrFail();
 
+        // CORRECTION : Récupérer le montant à payer - pour paiement additionnel, utiliser le montant du paiement
+        if ($paymentId) {
+            $payment = Payment::where('id', $paymentId)
+                ->where('order_id', $orderId)
+                ->firstOrFail();
+            $amountToPay = $payment->amount; // CORRECTION : Utiliser le montant du paiement additionnel
+        } else {
+            $amountToPay = $order->total;
+        }
+
         return view('client.transaction-form', [
             'tableNumber' => Auth::user()->table_number,
-            'order' => $order
+            'order' => $order,
+            'amountToPay' => $amountToPay,
+            'paymentId' => $paymentId
         ]);
     }
 
     /**
      * Traiter le formulaire client + matching avec SMS stockés
      */
-    public function processTransaction(Request $request, $orderId)
+    public function processTransaction(Request $request, $orderId, $paymentId = null)
     {
         if (!Auth::check() || Auth::user()->role !== 'client') {
             return response()->json([
@@ -359,11 +487,28 @@ class ClientController extends Controller
                      ->where('table_number', Auth::user()->table_number)
                      ->firstOrFail();
 
-        if ($order->payment_status === 'payé') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cette commande a déjà été payée.'
-            ], 400);
+        // CORRECTION : Si c'est un paiement additionnel, utiliser le montant du paiement spécifique
+        if ($paymentId) {
+            $payment = Payment::where('id', $paymentId)
+                ->where('order_id', $orderId)
+                ->firstOrFail();
+            
+            if ($payment->status === 'verified') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce paiement additionnel a déjà été validé.'
+                ], 400);
+            }
+            
+            $amountToVerify = $payment->amount; // CORRECTION : Utiliser le montant du paiement additionnel
+        } else {
+            if ($order->payment_status === 'payé') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette commande a déjà été payée.'
+                ], 400);
+            }
+            $amountToVerify = $order->total;
         }
 
         try {
@@ -404,14 +549,14 @@ class ClientController extends Controller
             ]);
 
             // Chercher dans les SMS stockés avec une recherche plus large
-            $smsTransaction = $this->findMatchingSMS($request, $order);
+            $smsTransaction = $this->findMatchingSMS($request, $order, $amountToVerify);
 
             if (!$smsTransaction) {
                 Log::warning("❌ Aucun SMS correspondant trouvé après recherche étendue", [
                     'transaction_id' => $request->transaction_id,
                     'network' => $request->network,
                     'order_id' => $orderId,
-                    'order_total' => $order->total,
+                    'order_total' => $amountToVerify,
                     'phone_number' => $request->phone_number,
                     'search_time' => now()->toDateTimeString()
                 ]);
@@ -447,7 +592,7 @@ class ClientController extends Controller
             }
 
             // Vérifier la cohérence des données
-            $validation = $this->validateTransactionData($transactionData, $request, $order, $smsTransaction);
+            $validation = $this->validateTransactionData($transactionData, $request, $amountToVerify, $smsTransaction);
             
             if (!$validation['valid']) {
                 return response()->json([
@@ -470,13 +615,14 @@ class ClientController extends Controller
             }
 
             // Finaliser la transaction
-            $this->finalizeTransaction($smsTransaction, $transactionData, $order, $request);
+            $this->finalizeTransaction($smsTransaction, $transactionData, $order, $request, $paymentId);
 
             Log::info("🎉 Paiement validé avec succès!", [
                 'order_id' => $order->id,
+                'payment_id' => $paymentId,
                 'sms_id' => $smsTransaction->id,
                 'transaction_id' => $request->transaction_id,
-                'amount' => $order->total,
+                'amount' => $amountToVerify,
                 'phone_number' => $request->phone_number
             ]);
 
@@ -491,6 +637,7 @@ class ClientController extends Controller
                 'error' => $e->getMessage(), 
                 'trace' => $e->getTraceAsString(),
                 'order_id' => $orderId,
+                'payment_id' => $paymentId,
                 'transaction_id' => $request->transaction_id ?? 'N/A'
             ]);
             
@@ -564,12 +711,11 @@ class ClientController extends Controller
     /**
      * Chercher un SMS qui correspond aux critères
      */
-    private function findMatchingSMS($request, $order)
+    private function findMatchingSMS($request, $order, $orderAmount)
     {
         $transactionId = trim($request->transaction_id);
         $phoneNumber = trim($request->phone_number);
         $network = $request->network;
-        $orderAmount = $order->total;
 
         Log::info("🔍 RECHERCHE SMS DÉTAILLÉE:", [
             'transaction_id' => $transactionId,
@@ -659,11 +805,10 @@ class ClientController extends Controller
     /**
      * Valider les données de transaction
      */
-    private function validateTransactionData($transactionData, $request, $order, $smsTransaction)
+    private function validateTransactionData($transactionData, $request, $orderAmount, $smsTransaction)
     {
         $transactionId = trim($request->transaction_id);
         $phoneNumber = trim($request->phone_number);
-        $orderAmount = $order->total;
 
         // 1. Vérifier l'ID de transaction
         if ($transactionData['transaction_id'] !== $transactionId) {
@@ -689,7 +834,7 @@ class ClientController extends Controller
         if (abs($transactionData['amount'] - $orderAmount) > 0.5) {
             return [
                 'valid' => false,
-                'message' => 'Le montant du SMS (' . number_format($transactionData['amount'], 0, ',', ' ') . ' FCFA) ne correspond pas à la commande (' . number_format($orderAmount, 0, ',', ' ') . ' FCFA).'
+                'message' => 'Le montant du SMS (' . number_format($transactionData['amount'], 0, ',', ' ') . ' FCFA) ne correspond pas au montant à payer (' . number_format($orderAmount, 0, ',', ' ') . ' FCFA).'
             ];
         }
 
@@ -855,9 +1000,9 @@ class ClientController extends Controller
     }
 
     /**
-     * Finaliser la transaction
+     * Finaliser la transaction - CORRECTION CRITIQUE
      */
-    private function finalizeTransaction($smsTransaction, $transactionData, $order, $request)
+    private function finalizeTransaction($smsTransaction, $transactionData, $order, $request, $paymentId = null)
     {
         // Mettre à jour la transaction SMS avec toutes les infos extraites
         $smsTransaction->update([
@@ -870,24 +1015,46 @@ class ClientController extends Controller
             'verified_at' => now()
         ]);
 
-        // Créer le paiement
-        Payment::create([
-            'order_id' => $order->id,
-            'amount' => $order->total,
-            'payment_method' => 'mobile_money',
-            'transaction_id' => $request->transaction_id,
-            'network' => $request->network,
-            'phone_number' => $request->phone_number,
-            'status' => 'verified',
-            'verified_at' => now()
-        ]);
+        // Si c'est un paiement additionnel, mettre à jour ce paiement spécifique
+        if ($paymentId) {
+            $payment = Payment::where('id', $paymentId)
+                ->where('order_id', $order->id)
+                ->firstOrFail();
+                
+            $payment->update([
+                'transaction_id' => $request->transaction_id,
+                'status' => 'verified',
+                'verified_at' => now()
+            ]);
+            
+            // CORRECTION : NE PAS METTRE À JOUR LE STATUT DE PAIEMENT DE LA COMMANDE PRINCIPALE
+            // Pour les paiements additionnels, on ne marque PAS la commande comme "payé"
+            // car cela correspond seulement aux nouveaux articles ajoutés
+            Log::info("✅ Paiement additionnel vérifié - ID: {$payment->id}, Montant: {$payment->amount}");
+            
+            // IMPORTANT : On ne change PAS le payment_status de la commande
+            // La commande garde son statut de paiement initial
+            
+        } else {
+            // Créer le paiement pour une commande normale avec transaction_id
+            Payment::create([
+                'order_id' => $order->id,
+                'amount' => $order->total,
+                'payment_method' => 'mobile_money',
+                'transaction_id' => $request->transaction_id,
+                'network' => $request->network,
+                'phone_number' => $request->phone_number,
+                'status' => 'verified',
+                'verified_at' => now()
+            ]);
 
-        // Mettre à jour la commande
-        $order->update(['payment_status' => 'payé']);
+            // Mettre à jour la commande - seulement pour une nouvelle commande
+            $order->update(['payment_status' => 'payé']);
+        }
     }
 
     /**
-     * SYNCHRONISER TOUS LES FICHIERS SMS - CORRIGÉ
+     * SYNCHRONISER TOUS LES FICHIERS SMS
      */
     public function syncAllSMSFiles()
     {
@@ -937,7 +1104,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Traiter les fichiers CSV - CORRIGÉ
+     * Traiter les fichiers CSV
      */
     private function processCSVFile($filePath)
     {
@@ -1170,7 +1337,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Traiter les fichiers TXT - CORRIGÉ POUR VOTRE FORMAT
+     * Traiter les fichiers TXT
      */
     private function processTXTFile($filePath)
     {
@@ -1296,7 +1463,8 @@ class ClientController extends Controller
             'FCFA', 'XOF', 'mtn', 'moov', 'celtis', 'orange',
             'transaction', 'ref', 'paiement', 'transfert', 
             'mobile money', 'money', 'montant', 'reçu',
-            'solde', 'envoye', 'recu', 'agent', 'depot', 'retiré'
+            'solde', 'envoye', 'recu', 'agent', 'depot', 'retiré',
+            'depot recu'
         ];
         
         $lowerMessage = strtolower($message);
@@ -1310,7 +1478,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Analyser le SMS pour détecter un paiement - CORRIGÉ POUR L'EXTRACTION DES IDs
+     * Analyser le SMS pour détecter un paiement
      */
     private function parsePaymentSMS($message, $senderNumber)
     {
@@ -1375,7 +1543,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Parser les SMS MTN Money - CORRIGÉ POUR Transaction ID
+     * Parser les SMS MTN Money
      */
     private function parseMTNSMS($message)
     {
@@ -1465,7 +1633,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Parser les SMS Moov Money - CORRIGÉ POUR Ref
+     * Parser les SMS Moov Money
      */
     private function parseMoovSMS($message)
     {
@@ -1535,7 +1703,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Parser les SMS Celtis - CORRIGÉ POUR REF (en majuscules)
+     * Parser les SMS Celtis
      */
     private function parseCeltisSMS($message)
     {
@@ -1581,11 +1749,27 @@ class ClientController extends Controller
             ];
         }
 
-        // PATTERN 3: Retrait avec REF
+        // PATTERN 3: Depot recu (NOUVEAU PATTERN)
+        if (preg_match('/Depot recu de (\d+(?:[.,;\s]\d+)*)F.*?REF:\s*([A-Z0-9]+)/i', $message, $matches)) {
+            $amount = $this->parseAmount($matches[1]);
+            
+            Log::info("✅ PATTERN 3 Celtis - Depot recu", [
+                'montant' => $amount,
+                'ref' => $matches[2]
+            ]);
+            
+            return [
+                'transaction_id' => trim($matches[2]),
+                'amount' => $amount,
+                'network' => 'celtis'
+            ];
+        }
+
+        // PATTERN 4: Retrait avec REF
         if (preg_match('/Vous avez retiré.*?montant de (\d+(?:[.,;\s]\d+)*)F.*?REF:\s*([A-Z0-9]+)/i', $message, $matches)) {
             $amount = $this->parseAmount($matches[1]);
             
-            Log::info("✅ PATTERN 3 Celtis - Retrait", [
+            Log::info("✅ PATTERN 4 Celtis - Retrait", [
                 'montant' => $amount,
                 'ref' => $matches[2]
             ]);
@@ -1859,5 +2043,34 @@ class ClientController extends Controller
                 'message' => 'Erreur: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Vider le panier
+     */
+    public function clearCart(Request $request)
+    {
+        $cart = session()->get('cart', []);
+        $orderId = $request->get('order_id');
+        
+        if ($orderId) {
+            // Vider seulement les articles d'une commande spécifique
+            foreach ($cart as $key => $item) {
+                if (isset($item['order_id']) && $item['order_id'] == $orderId) {
+                    unset($cart[$key]);
+                }
+            }
+        } else {
+            // Vider tout le panier
+            $cart = [];
+        }
+        
+        session()->put('cart', $cart);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Panier vidé avec succès',
+            'cart_count' => array_sum(array_column($cart, 'quantity'))
+        ]);
     }
 }

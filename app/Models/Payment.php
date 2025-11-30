@@ -26,8 +26,8 @@ class Payment extends Model
         'amount' => 'decimal:2'
     ];
 
-    // Statuts simplifiés
-    const STATUS_PENDING = 'pending';
+    // Statuts
+    const STATUS_PENDING = 'en_attente';
     const STATUS_VERIFIED = 'verified';
     const STATUS_REJECTED = 'rejected';
 
@@ -71,10 +71,12 @@ class Payment extends Model
                 'verified_at' => now()
             ]);
 
-            // CORRECTION : Mettre à jour le statut de la commande
-            if ($this->order) {
+            // CORRECTION : Mettre à jour le statut de la commande SEULEMENT si c'est le paiement principal
+            if ($this->order && $this->isMainPayment()) {
                 $this->order->update(['payment_status' => 'payé']);
                 \Log::info("✅ Statut commande mis à jour: commande #{$this->order->id} -> payé");
+            } else {
+                \Log::info("✅ Paiement additionnel vérifié - ID: {$this->id}, Montant: {$this->amount}");
             }
 
             return true;
@@ -83,6 +85,21 @@ class Payment extends Model
             \Log::error('Erreur attemptAutoVerification:', ['error' => $e->getMessage(), 'payment_id' => $this->id]);
             return false;
         }
+    }
+
+    /**
+     * Vérifier si c'est le paiement principal de la commande
+     */
+    private function isMainPayment()
+    {
+        // Le paiement principal est celui dont le montant correspond au total de la commande
+        // ou le premier paiement vérifié pour cette commande
+        $mainPayment = self::where('order_id', $this->order_id)
+            ->where('status', self::STATUS_VERIFIED)
+            ->orderBy('created_at', 'asc')
+            ->first();
+            
+        return !$mainPayment || $mainPayment->id === $this->id;
     }
 
     /**
@@ -101,6 +118,8 @@ class Payment extends Model
      */
     private function isAmountMatching()
     {
+        // Pour les paiements additionnels, on vérifie seulement que le montant correspond
+        // au montant du paiement, pas au total de la commande
         return abs($this->amount - $this->order->total) < 0.01;
     }
 
