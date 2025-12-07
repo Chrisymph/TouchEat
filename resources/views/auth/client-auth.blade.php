@@ -8,6 +8,17 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-green-100 to-blue-100 p-4">
+    <!-- Bouton Accueil en haut à gauche -->
+    <div class="absolute top-4 left-4 z-10">
+        <a href="{{ route('welcome') }}" 
+           class="inline-flex items-center bg-white text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg px-4 py-2 text-sm font-medium border border-gray-300 shadow-sm transition-all duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+            </svg>
+            Accueil
+        </a>
+    </div>
+
     <div x-data="{ 
         isSignUp: false, 
         loading: false, 

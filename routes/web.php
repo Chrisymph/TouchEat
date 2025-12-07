@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('welcome'); // J'ai ajouté le nom 'welcome' à cette route
 
 Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
 
