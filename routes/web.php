@@ -31,6 +31,11 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::put('/orders/{id}/status', [AdminController::class, 'updateOrderStatus'])->name('admin.orders.status');
     Route::get('/orders/{id}', [AdminController::class, 'showOrder'])->name('admin.orders.show');
     Route::get('/orders/{id}/ajax', [AdminController::class, 'showOrder'])->name('admin.orders.ajax.details');
+    
+    // NOUVELLES ROUTES POUR LE TIMER
+    Route::post('/orders/{id}/set-preparation-time', [AdminController::class, 'setPreparationTime'])->name('admin.orders.set-preparation-time');
+    Route::get('/orders/{id}/timer-data', [AdminController::class, 'getTimerData'])->name('admin.orders.timer-data');
+    
     Route::post('/orders/{id}/add-time', [AdminController::class, 'addTimeToOrder'])->name('admin.orders.add-time');
     Route::post('/orders/{id}/status-ajax', [AdminController::class, 'updateOrderStatusAjax'])->name('admin.orders.status.ajax');
     Route::get('/orders/{id}/receipt', [AdminController::class, 'generateReceipt'])->name('admin.orders.receipt');
@@ -96,10 +101,9 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::post('/force-sync-sms', [ClientController::class, 'forceSyncSMS'])->name('client.sms.force-sync');
 
     // Routes pour le panier
-Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
-Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
-Route::post('/cart/clear', [ClientController::class, 'clearCart'])->name('client.cart.clear');
-
+    Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
+    Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
+    Route::post('/cart/clear', [ClientController::class, 'clearCart'])->name('client.cart.clear');
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });

@@ -14,7 +14,7 @@ use App\Models\User;
 
 class AdminController extends Controller
 {
-        /**
+    /**
      * Afficher le tableau de bord administrateur - CORRIGÉ
      */
     public function dashboard()
@@ -250,6 +250,93 @@ class AdminController extends Controller
             
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Erreur lors de l\'impression du reçu');
+        }
+    }
+
+    /**
+     * Définir le temps de préparation pour une commande (NOUVELLE MÉTHODE)
+     */
+    public function setPreparationTime(Request $request, $id)
+    {
+        $request->validate([
+            'preparation_time' => 'required|integer|min:1|max:240',
+            'status' => 'required|in:commandé,en_cours'
+        ]);
+
+        try {
+            $order = Order::findOrFail($id);
+            
+            // Mettre à jour le temps estimé et le statut
+            $order->estimated_time = $request->preparation_time;
+            $order->status = 'en_cours';
+            $order->started_at = now(); // Démarrer le timer
+            
+            // Si le statut est "en_cours", initialiser started_at
+            if ($request->status === 'en_cours' && !$order->started_at) {
+                $order->started_at = now();
+            }
+            
+            $order->save();
+
+            // Log pour débogage
+            \Log::info('Temps de préparation défini', [
+                'order_id' => $id,
+                'preparation_time' => $request->preparation_time,
+                'started_at' => $order->started_at
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Temps de préparation défini et timer démarré!',
+                'order' => [
+                    'id' => $order->id,
+                    'estimated_time' => $order->estimated_time,
+                    'started_at' => $order->started_at,
+                    'status' => $order->status
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur setPreparationTime:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la définition du temps: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les données du timer pour une commande (NOUVELLE MÉTHODE)
+     */
+    public function getTimerData($id)
+    {
+        try {
+            $order = Order::findOrFail($id);
+            
+            $data = [
+                'timer_active' => $order->timer_active,
+                'estimated_time' => $order->estimated_time,
+                'elapsed_minutes' => $order->elapsed_minutes,
+                'remaining_minutes' => $order->remaining_minutes,
+                'progress_percentage' => $order->timer_progress_percentage,
+                'is_almost_expired' => $order->remaining_minutes <= 5 && $order->remaining_minutes > 0,
+                'is_expired' => $order->remaining_minutes <= 0 && $order->status === 'en_cours',
+                'formatted_remaining_time' => $order->formatted_remaining_time,
+                'formatted_elapsed_time' => $order->formatted_elapsed_time
+            ];
+
+            return response()->json([
+                'success' => true,
+                'timer_data' => $data,
+                'order_status' => $order->status
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur getTimerData:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du timer: ' . $e->getMessage()
+            ], 500);
         }
     }
 

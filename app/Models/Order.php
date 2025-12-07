@@ -133,6 +133,25 @@ class Order extends Model
     }
 
     /**
+     * Vérifier si le timer est presque écoulé (moins de 5 minutes)
+     */
+    public function getTimerAlmostExpiredAttribute()
+    {
+        return $this->timer_active && $this->remaining_minutes <= 5;
+    }
+
+    /**
+     * Vérifier si le timer est expiré
+     */
+    public function getTimerExpiredAttribute()
+    {
+        return $this->status === 'en_cours' && 
+               $this->estimated_time > 0 && 
+               $this->started_at && 
+               $this->remaining_minutes <= 0;
+    }
+
+    /**
      * Formater le temps écoulé pour l'affichage
      */
     public function getFormattedElapsedTimeAttribute()
@@ -175,6 +194,43 @@ class Order extends Model
 
         $elapsed = $this->elapsed_minutes;
         return min(100, ($elapsed / $this->estimated_time) * 100);
+    }
+
+    /**
+     * Obtenir la couleur du timer en fonction du temps restant
+     */
+    public function getTimerColorAttribute()
+    {
+        if (!$this->timer_active) {
+            return 'gray';
+        }
+
+        if ($this->timer_expired) {
+            return 'red';
+        }
+
+        if ($this->timer_almost_expired) {
+            return 'orange';
+        }
+
+        return 'green';
+    }
+
+    /**
+     * Obtenir la classe CSS pour le timer
+     */
+    public function getTimerClassAttribute()
+    {
+        $color = $this->timer_color;
+        
+        $classes = [
+            'gray' => 'bg-gray-100 text-gray-800',
+            'green' => 'bg-green-100 text-green-800',
+            'orange' => 'bg-orange-100 text-orange-800',
+            'red' => 'bg-red-100 text-red-800 animate-pulse',
+        ];
+
+        return $classes[$color] ?? $classes['gray'];
     }
 
     /**
@@ -267,6 +323,36 @@ class Order extends Model
     public function scopeCompleted($query)
     {
         return $query->whereIn('status', ['terminé', 'livré']);
+    }
+
+    /**
+     * Scope pour les commandes avec timer actif
+     */
+    public function scopeWithActiveTimer($query)
+    {
+        return $query->where('status', 'en_cours')
+                    ->whereNotNull('estimated_time')
+                    ->where('estimated_time', '>', 0)
+                    ->whereNotNull('started_at');
+    }
+
+    /**
+     * Scope pour les commandes avec timer presque expiré
+     */
+    public function scopeWithTimerAlmostExpired($query)
+    {
+        return $query->withActiveTimer()
+                    ->whereRaw('TIMESTAMPDIFF(MINUTE, started_at, NOW()) >= estimated_time - 5')
+                    ->whereRaw('TIMESTAMPDIFF(MINUTE, started_at, NOW()) < estimated_time');
+    }
+
+    /**
+     * Scope pour les commandes avec timer expiré
+     */
+    public function scopeWithTimerExpired($query)
+    {
+        return $query->withActiveTimer()
+                    ->whereRaw('TIMESTAMPDIFF(MINUTE, started_at, NOW()) >= estimated_time');
     }
 
     /**
@@ -405,5 +491,28 @@ class Order extends Model
         ];
 
         return $colors[$this->status] ?? 'gray';
+    }
+
+    /**
+     * Obtenir les données du timer pour l'affichage
+     */
+    public function getTimerDataAttribute()
+    {
+        return [
+            'active' => $this->timer_active,
+            'almost_expired' => $this->timer_almost_expired,
+            'expired' => $this->timer_expired,
+            'estimated_time' => $this->estimated_time,
+            'elapsed_minutes' => $this->elapsed_minutes,
+            'remaining_minutes' => $this->remaining_minutes,
+            'progress_percentage' => $this->timer_progress_percentage,
+            'formatted_remaining' => $this->formatted_remaining_time,
+            'formatted_elapsed' => $this->formatted_elapsed_time,
+            'color' => $this->timer_color,
+            'class' => $this->timer_class,
+            'started_at' => $this->started_at ? $this->started_at->format('H:i') : null,
+            'estimated_finish' => $this->started_at && $this->estimated_time ? 
+                $this->started_at->addMinutes($this->estimated_time)->format('H:i') : null
+        ];
     }
 }
