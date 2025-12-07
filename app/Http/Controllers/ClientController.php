@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\SMSTransaction;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class ClientController extends Controller
 {
@@ -320,6 +321,7 @@ class ClientController extends Controller
                 'order_type' => $request->order_type,
                 'customer_phone' => $request->phone_number,
                 'estimated_time' => null,
+                'started_at' => null, // Nouveau champ
                 'delivery_address' => $request->delivery_address,
                 'delivery_notes' => $request->delivery_notes
             ]);
@@ -1871,7 +1873,7 @@ class ClientController extends Controller
         ]);
     }
 
-    /**
+     /**
      * Afficher la confirmation de commande
      */
     public function orderConfirmation($orderId)
@@ -1891,9 +1893,29 @@ class ClientController extends Controller
                      ->where('table_number', Auth::user()->table_number)
                      ->firstOrFail();
 
+        // Calculer le temps écoulé depuis le début de la préparation
+        $elapsedMinutes = 0;
+        $startedAt = null;
+        
+        if ($order->status === 'en_cours' && $order->estimated_time && $order->started_at) {
+            // Convertir started_at en objet Carbon si c'est une string
+            $startedAt = $order->started_at instanceof Carbon ? $order->started_at : Carbon::parse($order->started_at);
+            $elapsedMinutes = now()->diffInMinutes($startedAt);
+            
+            // Limiter au temps estimé si dépassé
+            if ($elapsedMinutes > $order->estimated_time) {
+                $elapsedMinutes = $order->estimated_time;
+            }
+        }
+
+        // Formatage correct pour JavaScript
+        $startedAtFormatted = $startedAt ? $startedAt->toISOString() : null;
+
         return view('client.order-confirmation', [
             'tableNumber' => Auth::user()->table_number,
-            'order' => $order
+            'order' => $order,
+            'elapsedMinutes' => $elapsedMinutes,
+            'startedAt' => $startedAtFormatted
         ]);
     }
 
@@ -1905,11 +1927,29 @@ class ClientController extends Controller
             return response()->json(['error' => 'Commande non trouvée'], 404);
         }
 
+        // Calculer le temps écoulé depuis le début de la préparation
+        $elapsedMinutes = 0;
+        $startedAt = null;
+        
+        if ($order->status === 'en_cours' && $order->started_at) {
+            // Convertir started_at en objet Carbon si c'est une string
+            $startedAt = $order->started_at instanceof Carbon ? $order->started_at : Carbon::parse($order->started_at);
+            $elapsedMinutes = now()->diffInMinutes($startedAt);
+            
+            // Limiter au temps estimé si dépassé
+            if ($order->estimated_time && $elapsedMinutes > $order->estimated_time) {
+                $elapsedMinutes = $order->estimated_time;
+            }
+        }
+
         return response()->json([
             'status' => $order->status,
             'estimated_time' => $order->estimated_time,
             'marked_ready_at' => $order->marked_ready_at,
-            'payment_status' => $order->payment_status
+            'payment_status' => $order->payment_status,
+            'started_at' => $startedAt ? $startedAt->toISOString() : null,
+            'elapsed_minutes' => $elapsedMinutes,
+            'remaining_minutes' => $order->estimated_time ? max(0, $order->estimated_time - $elapsedMinutes) : 0
         ]);
     }
 

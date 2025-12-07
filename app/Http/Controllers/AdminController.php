@@ -1084,6 +1084,11 @@ public function downloadDateReport(Request $request)
             $order = Order::findOrFail($id);
             $order->status = $request->status;
             
+            // Si on passe la commande en "en_cours" pour la première fois, définir started_at
+            if ($request->status === 'en_cours' && !$order->started_at) {
+                $order->started_at = now();
+            }
+            
             // Si l'admin fournit un temps estimé, l'utiliser
             if ($request->has('estimated_time') && $request->estimated_time) {
                 $order->estimated_time = $request->estimated_time;
@@ -1109,7 +1114,7 @@ public function downloadDateReport(Request $request)
     }
 
     /**
-     * Ajouter du temps à une commande existante avec ajout d'articles
+     * Ajouter du temps à une commande existante
      */
     public function addTimeToOrder(Request $request, $id)
     {
@@ -1120,40 +1125,32 @@ public function downloadDateReport(Request $request)
         try {
             $order = Order::with('items')->findOrFail($id);
 
-            // La commande doit être en cours (ou commandé)
-            if (!in_array($order->status, ['commandé', 'en_cours'])) {
+            // La commande doit être en cours
+            if ($order->status !== 'en_cours') {
                 return response()->json([
                     'success' => false,
-                    'message' => "Impossible d'ajouter du temps : la commande n'est pas active."
+                    'message' => "Impossible d'ajouter du temps : la commande n'est pas en cours de préparation."
                 ], 400);
             }
 
-            // Vérifier qu'il y a eu au moins une commande précédente du client/table
-            if (!$order->hasPreviousOrders()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Impossible d'ajouter du temps : le client n'a pas de commande précédente terminée."
-                ], 400);
+            // Vérifier que started_at est défini
+            if (!$order->started_at) {
+                $order->started_at = now();
+                $order->save();
             }
 
-            // Vérifier qu'il y a eu de réels ajouts d'articles pendant la commande en cours
-            // (seuil 30s, identique à celui du modèle)
-            if (!$order->hasRecentAdditions(30)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Ajout de temps réservé aux commandes où des articles ont été ajoutés pendant la commande."
-                ], 400);
-            }
-
-            // Ajouter le temps
+            // Ajouter le temps au temps estimé EXISTANT (ne pas écraser)
             $additional = (int)$request->input('additional_time', 0);
-            $order->estimated_time = ($order->estimated_time ?? 0) + $additional;
+            $currentEstimatedTime = $order->estimated_time ?? 0;
+            $order->estimated_time = $currentEstimatedTime + $additional;
             $order->save();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Temps supplémentaire ajouté avec succès.',
-                'new_estimated_time' => $order->estimated_time
+                'new_estimated_time' => $order->estimated_time,
+                'started_at' => $order->started_at,
+                'elapsed_minutes' => $order->started_at ? now()->diffInMinutes($order->started_at) : 0
             ]);
         } catch (\Exception $e) {
             \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
