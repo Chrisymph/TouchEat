@@ -18,25 +18,223 @@ class Order extends Model
         'order_type', // sur_place, emporter, livraison
         'status', // commandé, en_cours, prêt, terminé, livré
         'estimated_time',
+        'started_at',
         'total',
-        'delivery_address', // Assurez-vous que c'est présent
-        'delivery_notes',   // Et celui-ci aussi
+        'delivery_address',
+        'delivery_notes',
         'marked_ready_at',
+        'payment_status', // 🔥 ASSUREZ-VOUS QUE C'EST BIEN PRÉSENT
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
+        'updated_at' => 'datetime',
         'marked_ready_at' => 'datetime',
+        'started_at' => 'datetime',
+        'estimated_time' => 'integer',
+        'total' => 'decimal:2',
     ];
 
-    public function items()
+    /**
+     * Accesseur pour started_at - CORRECTION CRITIQUE
+     */
+    public function getStartedAtAttribute($value)
     {
-        return $this->hasMany(OrderItem::class);
+        if (!$value) {
+            return null;
+        }
+        
+        // Si c'est déjà une instance Carbon, retournez-la
+        if ($value instanceof Carbon) {
+            return $value;
+        }
+        
+        // Sinon, parsez la chaîne
+        try {
+            return Carbon::parse($value);
+        } catch (\Exception $e) {
+            // Si le parsing échoue, retournez null
+            return null;
+        }
+    }
+
+    /**
+     * Mutateur pour started_at - CORRECTION CRITIQUE
+     */
+    public function setStartedAtAttribute($value)
+    {
+        if (!$value) {
+            $this->attributes['started_at'] = null;
+        } elseif ($value instanceof Carbon) {
+            $this->attributes['started_at'] = $value;
+        } elseif (is_string($value)) {
+            try {
+                $this->attributes['started_at'] = Carbon::parse($value);
+            } catch (\Exception $e) {
+                // Si le parsing échoue, utilisez maintenant
+                $this->attributes['started_at'] = Carbon::now();
+            }
+        } else {
+            $this->attributes['started_at'] = Carbon::now();
+        }
+    }
+
+    /**
+     * Calculer le temps écoulé depuis le début de la préparation
+     */
+    public function getElapsedMinutesAttribute()
+    {
+        // Si la commande n'est pas en cours ou n'a pas de début, retourner 0
+        if ($this->status !== 'en_cours' || !$this->started_at) {
+            return 0;
+        }
+
+        try {
+            $startedAt = $this->getStartedAtAttribute($this->attributes['started_at'] ?? null);
+            if (!$startedAt) {
+                return 0;
+            }
+
+            $elapsed = now()->diffInMinutes($startedAt);
+            
+            // Limiter au temps estimé si dépassé
+            if ($this->estimated_time && $elapsed > $this->estimated_time) {
+                return $this->estimated_time;
+            }
+
+            return $elapsed;
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Calculer le temps restant
+     */
+    public function getRemainingMinutesAttribute()
+    {
+        if (!$this->estimated_time || $this->status !== 'en_cours') {
+            return 0;
+        }
+
+        $elapsed = $this->elapsed_minutes;
+        return max(0, $this->estimated_time - $elapsed);
+    }
+
+    /**
+     * Vérifier si le timer est actif
+     */
+    public function getTimerActiveAttribute()
+    {
+        return $this->status === 'en_cours' && 
+               $this->estimated_time > 0 && 
+               $this->started_at && 
+               $this->remaining_minutes > 0;
+    }
+
+    /**
+     * Vérifier si le timer est presque écoulé (moins de 5 minutes)
+     */
+    public function getTimerAlmostExpiredAttribute()
+    {
+        return $this->timer_active && $this->remaining_minutes <= 5;
+    }
+
+    /**
+     * Vérifier si le timer est expiré
+     */
+    public function getTimerExpiredAttribute()
+    {
+        return $this->status === 'en_cours' && 
+               $this->estimated_time > 0 && 
+               $this->started_at && 
+               $this->remaining_minutes <= 0;
+    }
+
+    /**
+     * Formater le temps écoulé pour l'affichage
+     */
+    public function getFormattedElapsedTimeAttribute()
+    {
+        $minutes = $this->elapsed_minutes;
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($hours > 0) {
+            return sprintf('%dh %02dm', $hours, $remainingMinutes);
+        }
+
+        return sprintf('%dm', $minutes);
+    }
+
+    /**
+     * Formater le temps restant pour l'affichage
+     */
+    public function getFormattedRemainingTimeAttribute()
+    {
+        $minutes = $this->remaining_minutes;
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($hours > 0) {
+            return sprintf('%dh %02dm', $hours, $remainingMinutes);
+        }
+
+        return sprintf('%dm', $minutes);
+    }
+
+    /**
+     * Pourcentage de progression du timer
+     */
+    public function getTimerProgressPercentageAttribute()
+    {
+        if (!$this->estimated_time || $this->estimated_time === 0) {
+            return 0;
+        }
+
+        $elapsed = $this->elapsed_minutes;
+        return min(100, ($elapsed / $this->estimated_time) * 100);
+    }
+
+    /**
+     * Obtenir la couleur du timer en fonction du temps restant
+     */
+    public function getTimerColorAttribute()
+    {
+        if (!$this->timer_active) {
+            return 'gray';
+        }
+
+        if ($this->timer_expired) {
+            return 'red';
+        }
+
+        if ($this->timer_almost_expired) {
+            return 'orange';
+        }
+
+        return 'green';
+    }
+
+    /**
+     * Obtenir la classe CSS pour le timer
+     */
+    public function getTimerClassAttribute()
+    {
+        $color = $this->timer_color;
+        
+        $classes = [
+            'gray' => 'bg-gray-100 text-gray-800',
+            'green' => 'bg-green-100 text-green-800',
+            'orange' => 'bg-orange-100 text-orange-800',
+            'red' => 'bg-red-100 text-red-800 animate-pulse',
+        ];
+
+        return $classes[$color] ?? $classes['gray'];
     }
 
     /**
      * Vérifie si le client (table ou téléphone) a au moins une commande précédente terminée/livrée.
-     * Supporte les commandes "sur_place" (par table_number) et "emporter/livraison" (par customer_phone).
      */
     public function hasPreviousOrders(): bool
     {
@@ -60,11 +258,6 @@ class Order extends Model
 
     /**
      * Détecte s'il y a eu de réels ajouts d'articles pendant la commande en cours.
-     *
-     * Logique :
-     * - Si un order_item a été créé **après** la création de la commande (delta > 30s) => ajout.
-     * - OU si un item a été modifié (updated_at) après la création de la commande => ajout.
-     * - On évite de déclencher l'ajout pour la simple présence de 2 items créés en même temps que la commande.
      */
     public function hasRecentAdditions(int $secondsThreshold = 30): bool
     {
@@ -90,5 +283,236 @@ class Order extends Model
 
         // aucun item n'a de création/modif significative après la commande
         return false;
+    }
+
+    /**
+     * Scope pour les commandes payées
+     */
+    public function scopePaid($query)
+    {
+        return $query->where('payment_status', 'payé');
+    }
+
+    /**
+     * Scope pour les commandes en attente de paiement
+     */
+    public function scopePendingPayment($query)
+    {
+        return $query->where('payment_status', 'en_attente');
+    }
+
+    /**
+     * Scope pour les commandes en cours
+     */
+    public function scopeInProgress($query)
+    {
+        return $query->where('status', 'en_cours');
+    }
+
+    /**
+     * Scope pour les commandes prêtes
+     */
+    public function scopeReady($query)
+    {
+        return $query->where('status', 'prêt');
+    }
+
+    /**
+     * Scope pour les commandes terminées
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->whereIn('status', ['terminé', 'livré']);
+    }
+
+    /**
+     * Scope pour les commandes avec timer actif
+     */
+    public function scopeWithActiveTimer($query)
+    {
+        return $query->where('status', 'en_cours')
+                    ->whereNotNull('estimated_time')
+                    ->where('estimated_time', '>', 0)
+                    ->whereNotNull('started_at');
+    }
+
+    /**
+     * Scope pour les commandes avec timer presque expiré
+     */
+    public function scopeWithTimerAlmostExpired($query)
+    {
+        return $query->withActiveTimer()
+                    ->whereRaw('TIMESTAMPDIFF(MINUTE, started_at, NOW()) >= estimated_time - 5')
+                    ->whereRaw('TIMESTAMPDIFF(MINUTE, started_at, NOW()) < estimated_time');
+    }
+
+    /**
+     * Scope pour les commandes avec timer expiré
+     */
+    public function scopeWithTimerExpired($query)
+    {
+        return $query->withActiveTimer()
+                    ->whereRaw('TIMESTAMPDIFF(MINUTE, started_at, NOW()) >= estimated_time');
+    }
+
+    /**
+     * Vérifier si la commande peut recevoir des ajouts de temps
+     */
+    public function canAddTime(): bool
+    {
+        return $this->status === 'en_cours' && 
+               $this->started_at && 
+               $this->estimated_time > 0 && 
+               $this->hasRecentAdditions();
+    }
+
+    /**
+     * Ajouter du temps à la commande (utilisé par l'admin)
+     */
+    public function addTime(int $additionalMinutes): bool
+    {
+        if (!$this->canAddTime()) {
+            return false;
+        }
+
+        $this->estimated_time += $additionalMinutes;
+        return $this->save();
+    }
+
+    /**
+     * Démarrer le timer (mettre la commande en cours)
+     */
+    public function startTimer(int $estimatedMinutes = null): bool
+    {
+        if ($this->status !== 'commandé') {
+            return false;
+        }
+
+        $this->status = 'en_cours';
+        $this->started_at = Carbon::now();
+        
+        if ($estimatedMinutes) {
+            $this->estimated_time = $estimatedMinutes;
+        }
+
+        return $this->save();
+    }
+
+    /**
+     * Marquer la commande comme prête
+     */
+    public function markAsReady(): bool
+    {
+        $this->status = 'prêt';
+        $this->marked_ready_at = Carbon::now();
+        return $this->save();
+    }
+
+    /**
+     * Relation avec les articles de commande
+     */
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    /**
+     * Relation avec les paiements
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Obtenir le dernier paiement vérifié
+     */
+    public function getLastVerifiedPaymentAttribute()
+    {
+        return $this->payments()
+            ->where('status', 'verified')
+            ->latest()
+            ->first();
+    }
+
+    /**
+     * Obtenir le total payé
+     */
+    public function getTotalPaidAttribute()
+    {
+        return $this->payments()
+            ->where('status', 'verified')
+            ->sum('amount');
+    }
+
+    /**
+     * Vérifier si la commande est entièrement payée
+     */
+    public function getIsFullyPaidAttribute()
+    {
+        return $this->total_paid >= $this->total;
+    }
+
+    /**
+     * Formater le montant total
+     */
+    public function getFormattedTotalAttribute()
+    {
+        return number_format($this->total, 0, ',', ' ') . ' FCFA';
+    }
+
+    /**
+     * Obtenir le nom du statut formaté
+     */
+    public function getFormattedStatusAttribute()
+    {
+        $statuses = [
+            'commandé' => 'Commandé',
+            'en_cours' => 'En cours',
+            'prêt' => 'Prêt',
+            'terminé' => 'Terminé',
+            'livré' => 'Livré',
+        ];
+
+        return $statuses[$this->status] ?? $this->status;
+    }
+
+    /**
+     * Obtenir la couleur du statut pour l'affichage
+     */
+    public function getStatusColorAttribute()
+    {
+        $colors = [
+            'commandé' => 'yellow',
+            'en_cours' => 'blue',
+            'prêt' => 'green',
+            'terminé' => 'gray',
+            'livré' => 'purple',
+        ];
+
+        return $colors[$this->status] ?? 'gray';
+    }
+
+    /**
+     * Obtenir les données du timer pour l'affichage
+     */
+    public function getTimerDataAttribute()
+    {
+        return [
+            'active' => $this->timer_active,
+            'almost_expired' => $this->timer_almost_expired,
+            'expired' => $this->timer_expired,
+            'estimated_time' => $this->estimated_time,
+            'elapsed_minutes' => $this->elapsed_minutes,
+            'remaining_minutes' => $this->remaining_minutes,
+            'progress_percentage' => $this->timer_progress_percentage,
+            'formatted_remaining' => $this->formatted_remaining_time,
+            'formatted_elapsed' => $this->formatted_elapsed_time,
+            'color' => $this->timer_color,
+            'class' => $this->timer_class,
+            'started_at' => $this->started_at ? $this->started_at->format('H:i') : null,
+            'estimated_finish' => $this->started_at && $this->estimated_time ? 
+                $this->started_at->addMinutes($this->estimated_time)->format('H:i') : null
+        ];
     }
 }

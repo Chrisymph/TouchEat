@@ -167,6 +167,20 @@
         <template x-if="!loading && !error">
             <div x-html="ordersContent"></div>
         </template>
+        
+        <!-- Indicateur de chargement spécifique -->
+        <div x-show="loading" class="text-center py-12">
+            <div class="text-6xl mb-4">🔄</div>
+            <p class="text-lg text-gray-600">Chargement des commandes...</p>
+        </div>
+        
+        <!-- Message d'erreur spécifique -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <p class="font-semibold">Erreur lors du chargement des commandes.</p>
+            <button @click="loadOrders()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                Réessayer
+            </button>
+        </div>
     </div>
 
     <!-- Onglet Menu (chargement AJAX) -->
@@ -174,6 +188,20 @@
         <template x-if="!loading && !error">
             <div x-html="menuContent"></div>
         </template>
+        
+        <!-- Indicateur de chargement spécifique -->
+        <div x-show="loading" class="text-center py-12">
+            <div class="text-6xl mb-4">🔄</div>
+            <p class="text-lg text-gray-600">Chargement du menu...</p>
+        </div>
+        
+        <!-- Message d'erreur spécifique -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <p class="font-semibold">Erreur lors du chargement du menu.</p>
+            <button @click="loadMenu()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                Réessayer
+            </button>
+        </div>
     </div>
 
     <!-- Onglet Clients (chargement AJAX) -->
@@ -181,6 +209,20 @@
         <template x-if="!loading && !error">
             <div x-html="clientsContent"></div>
         </template>
+        
+        <!-- Indicateur de chargement spécifique -->
+        <div x-show="loading" class="text-center py-12">
+            <div class="text-6xl mb-4">🔄</div>
+            <p class="text-lg text-gray-600">Chargement des clients...</p>
+        </div>
+        
+        <!-- Message d'erreur spécifique -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <p class="font-semibold">Erreur lors du chargement des clients.</p>
+            <button @click="loadClients()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                Réessayer
+            </button>
+        </div>
     </div>
 
     <!-- Onglet Rapports (chargement AJAX) -->
@@ -188,41 +230,26 @@
         <template x-if="!loading && !error">
             <div x-html="reportsContent"></div>
         </template>
+        
+        <!-- Indicateur de chargement spécifique -->
+        <div x-show="loading" class="text-center py-12">
+            <div class="text-6xl mb-4">🔄</div>
+            <p class="text-lg text-gray-600">Chargement des rapports...</p>
+        </div>
+        
+        <!-- Message d'erreur spécifique -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <p class="font-semibold">Erreur lors du chargement des rapports.</p>
+            <button @click="loadReports()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                Réessayer
+            </button>
+        </div>
     </div>
 
-    <!-- Indicateur de chargement -->
-    <div x-show="loading" class="text-center py-12">
+    <!-- Indicateur de chargement global (en attendant la navigation) -->
+    <div x-show="loading && activeTab !== 'overview'" class="text-center py-12">
         <div class="text-6xl mb-4">🔄</div>
         <p class="text-lg text-gray-600">Chargement du contenu...</p>
-    </div>
-
-    <!-- Messages d'erreur -->
-    <div x-show="activeTab === 'orders' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        <p class="font-semibold">Erreur lors du chargement des commandes.</p>
-        <button @click="loadOrders()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-            Réessayer
-        </button>
-    </div>
-
-    <div x-show="activeTab === 'menu' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        <p class="font-semibold">Erreur lors du chargement du menu.</p>
-        <button @click="loadMenu()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-            Réessayer
-        </button>
-    </div>
-
-    <div x-show="activeTab === 'clients' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        <p class="font-semibold">Erreur lors du chargement des clients.</p>
-        <button @click="loadClients()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-            Réessayer
-        </button>
-    </div>
-
-    <div x-show="activeTab === 'reports' && error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        <p class="font-semibold">Erreur lors du chargement des rapports.</p>
-        <button @click="loadReports()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-            Réessayer
-        </button>
     </div>
 </div>
 
@@ -230,7 +257,7 @@
 <div id="timeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div class="p-6">
-            <h3 class="text-lg font-semibold mb-4">Définir le temps de préparation</h3>
+            <h3 class="text-lg font-semibold mb-4">⏱️ Définir le temps de préparation</h3>
             
             <form id="timeForm" method="POST">
                 @csrf
@@ -242,16 +269,40 @@
                         <label class="block text-sm font-medium text-gray-700 mb-2">
                             Temps de préparation estimé (minutes)
                         </label>
-                        <input type="number" name="estimated_time" id="estimatedTime" 
+                        <input type="number" name="preparation_time" id="estimatedTime" 
                                required min="1" max="120" value="15"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                placeholder="15">
                         <p class="text-sm text-gray-500 mt-1">Temps estimé pour préparer la commande</p>
                     </div>
                     
+                    <!-- Suggestions de temps -->
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" onclick="document.getElementById('estimatedTime').value = '5'" 
+                                class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-colors">
+                            5 min
+                        </button>
+                        <button type="button" onclick="document.getElementById('estimatedTime').value = '10'" 
+                                class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-colors">
+                            10 min
+                        </button>
+                        <button type="button" onclick="document.getElementById('estimatedTime').value = '15'" 
+                                class="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-sm transition-colors">
+                            15 min
+                        </button>
+                        <button type="button" onclick="document.getElementById('estimatedTime').value = '20'" 
+                                class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-colors">
+                            20 min
+                        </button>
+                    </div>
+                    
                     <div class="bg-blue-50 p-3 rounded-lg">
                         <p class="text-sm text-blue-700">
-                            ⏱️ Ce temps sera affiché au client avec un compte à rebours.
+                            ⏱️ Un compte à rebours sera affiché au client.
+                        </p>
+                        <p class="text-xs text-blue-600 mt-1">
+                            ✅ Notification visuelle à 5 minutes de la fin<br>
+                            🔴 Animation rouge quand le temps est écoulé
                         </p>
                     </div>
                 </div>
@@ -263,7 +314,7 @@
                     </button>
                     <button type="submit" 
                             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                        Confirmer et démarrer le timer
+                        Démarrer le timer
                     </button>
                 </div>
             </form>
@@ -272,7 +323,7 @@
 </div>
 
 <!-- Modal pour ajouter du temps -->
-<div id="addTimeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+<div id="addTimeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" style="display: none;">
     <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
         <h3 class="text-2xl font-bold text-gray-800 mb-2">Ajouter du temps</h3>
         <p class="text-gray-600 mb-4">Commande #<span id="modalOrderIdTime"></span></p>
@@ -566,7 +617,7 @@
 </div>
 
 <!-- Modal pour le rapport par date AVEC BOUTON TÉLÉCHARGER -->
-<div id="dateReportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+<div id="dateReportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden">
         <div class="p-6 border-b border-gray-200">
             <div class="flex justify-between items-center">
@@ -669,7 +720,7 @@ async function previewReceipt(orderId) {
     }
 }
 
-// Fonctions pour le modal de temps
+// Fonctions pour le modal de temps de préparation
 function openTimeModal(orderId) {
     document.getElementById('timeOrderId').value = orderId;
     document.getElementById('timeModal').style.display = 'flex';
@@ -689,7 +740,7 @@ function closeTimeModal() {
 function openAddTimeModal(orderId, currentTime) {
     console.log('⏱️ Ouverture modal ajout temps pour commande:', orderId, 'Temps actuel:', currentTime);
     
-    document.getElementById('addTimeModal').classList.remove('hidden');
+    document.getElementById('addTimeModal').style.display = 'flex';
     document.getElementById('modalOrderIdTime').textContent = orderId;
     document.getElementById('currentTimeDisplay').textContent = currentTime + ' min';
     
@@ -702,7 +753,7 @@ function openAddTimeModal(orderId, currentTime) {
 }
 
 function closeAddTimeModal() {
-    document.getElementById('addTimeModal').classList.add('hidden');
+    document.getElementById('addTimeModal').style.display = 'none';
 }
 
 function updateNewTimeDisplay() {
@@ -748,8 +799,8 @@ async function addTimeToOrder(orderId, additionalTime) {
     }
 }
 
-// Gestion de la soumission du formulaire de temps
-document.getElementById('timeForm').addEventListener('submit', function(e) {
+// Gestion de la soumission du formulaire de temps de préparation
+document.getElementById('timeForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     console.log('📤 Soumission du formulaire de temps');
     
@@ -764,8 +815,8 @@ document.getElementById('timeForm').addEventListener('submit', function(e) {
     
     console.log(`📦 Données: orderId=${orderId}`);
     
-    // Utiliser l'endpoint AJAX pour la mise à jour
-    fetch(`/admin/orders/${orderId}/status-ajax`, {
+    // Utiliser l'endpoint pour définir le temps de préparation
+    fetch(`/admin/orders/${orderId}/set-preparation-time`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -832,7 +883,7 @@ function openOrderDetailsModal(orderId) {
     fetch(apiUrl)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Erreur HTTP: ' . response.status);
+                throw new Error('Erreur HTTP: ' + response.status);
             }
             return response.json();
         })
@@ -926,7 +977,7 @@ function globalCloseModal() {
 }
 
 // Gestion de la soumission du formulaire global
-document.getElementById('globalMenuForm').addEventListener('submit', async function(e) {
+document.getElementById('globalMenuForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const formData = new FormData(this);
@@ -1011,7 +1062,7 @@ function closePromotionModal() {
 }
 
 // Calcul du nouveau prix en temps réel pour les promotions
-document.getElementById('promotionDiscount').addEventListener('input', function(e) {
+document.getElementById('promotionDiscount')?.addEventListener('input', function(e) {
     const discount = parseInt(e.target.value) || 0;
     const originalPrice = parseFloat(document.getElementById('promotionOriginalPrice').value);
     
@@ -1024,7 +1075,7 @@ document.getElementById('promotionDiscount').addEventListener('input', function(
 });
 
 // Gestion de la soumission du formulaire de promotion
-document.getElementById('promotionForm').addEventListener('submit', async function(e) {
+document.getElementById('promotionForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const formData = new FormData(this);
@@ -1071,7 +1122,7 @@ document.getElementById('promotionForm').addEventListener('submit', async functi
 });
 
 // ============================================================================
-// FONCTIONS POUR LA GESTION DU MENU - NOUVELLES FONCTIONS AJOUTÉES
+// FONCTIONS POUR LA GESTION DU MENU
 // ============================================================================
 
 // Fonction pour ouvrir le modal d'édition d'article
@@ -1253,7 +1304,7 @@ function handleToggleAvailability(itemId) {
     toggleAvailability(itemId);
 }
 
-// Fonctions pour le modal clients - VERSION CORRIGÉE
+// Fonctions pour le modal clients
 function openAddClientModal() {
     console.log('Ouverture du modal clients');
     document.getElementById('addClientModal').style.display = 'flex';
@@ -1530,7 +1581,7 @@ async function downloadDateReport() {
 
 // Fonctions pour le modal de rapport par date
 function closeDateReportModal() {
-    document.getElementById('dateReportModal').classList.add('hidden');
+    document.getElementById('dateReportModal').style.display = 'none';
 }
 
 // Gestion des événements
@@ -1640,7 +1691,7 @@ async function updateOrderStatus(orderId, newStatus) {
     }
 }
 
-// Composant principal du dashboard - VERSION CORRIGÉE AVEC FONCTIONS RAPPORTS
+// Composant principal du dashboard - VERSION CORRIGÉE
 document.addEventListener('alpine:init', () => {
     Alpine.data('dashboardComponent', () => ({
         activeTab: 'overview',
@@ -1901,7 +1952,7 @@ document.addEventListener('alpine:init', () => {
             modal.setAttribute('data-report-date', report.date);
             
             // Afficher le modal
-            if (modal) modal.classList.remove('hidden');
+            if (modal) modal.style.display = 'flex';
         },
 
         generateReportHTML(report) {
@@ -2028,7 +2079,7 @@ document.addEventListener('alpine:init', () => {
 
         closeDateReportModal() {
             const modal = document.getElementById('dateReportModal');
-            if (modal) modal.classList.add('hidden');
+            if (modal) modal.style.display = 'none';
         },
 
         initReportsChart() {
@@ -2189,7 +2240,7 @@ document.addEventListener('DOMContentLoaded', function() {
             openOrderDetailsModal(orderId);
         }
         
-        // Accepter commande
+        // Accepter commande (utilise le modal de temps)
         if (e.target.classList.contains('accept-order-btn')) {
             const orderId = e.target.dataset.orderId;
             openTimeModal(orderId);
@@ -2345,6 +2396,55 @@ document.addEventListener('DOMContentLoaded', function() {
 @keyframes loading {
     0% { left: -100%; }
     100% { left: 100%; }
+}
+
+/* Styles pour les notifications de timer */
+.timer-notification {
+    animation: slideDown 0.3s ease-out;
+    z-index: 10;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Animation de pulse pour les timers */
+@keyframes pulse-orange {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(249, 115, 22, 0);
+    }
+}
+
+@keyframes pulse-red {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+}
+
+.animate-pulse-orange {
+    animation: pulse-orange 2s infinite;
+}
+
+.animate-pulse-red {
+    animation: pulse-red 1s infinite;
+}
+
+/* Transitions pour les barres de progression */
+.bg-blue-600, .bg-orange-500, .bg-red-500 {
+    transition: width 1s ease-in-out;
 }
 </style>
 @endsection

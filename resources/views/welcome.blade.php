@@ -49,18 +49,24 @@
                 padding: 2rem;
             }
 
-            .logo {
-                font-family: 'Poppins', sans-serif;
-                font-size: 6rem;
-                font-weight: 900;
-                color: white;
-                text-shadow: 
+            .logo-container {
+                margin-bottom: 3rem;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                animation: float 3s ease-in-out infinite;
+            }
+
+            .logo-img {
+                max-width: 300px;
+                width: 100%;
+                height: auto;
+                border-radius: 25px; /* Bords arrondis */
+                box-shadow: 
                     4px 4px 0px rgba(0, 0, 0, 0.2),
                     8px 8px 0px rgba(0, 0, 0, 0.1);
-                margin-bottom: 3rem;
-                letter-spacing: 2px;
-                line-height: 1.1;
-                animation: float 3s ease-in-out infinite;
+                background: white;
+                padding: 10px;
             }
 
             @keyframes float {
@@ -190,8 +196,9 @@
 
             /* Responsive */
             @media (max-width: 768px) {
-                .logo {
-                    font-size: 4rem;
+                .logo-img {
+                    max-width: 250px;
+                    border-radius: 20px;
                 }
                 
                 .subtitle {
@@ -218,8 +225,9 @@
             }
 
             @media (max-width: 480px) {
-                .logo {
-                    font-size: 3rem;
+                .logo-img {
+                    max-width: 200px;
+                    border-radius: 15px;
                 }
                 
                 .subtitle {
@@ -310,7 +318,14 @@
 
         <!-- Contenu principal -->
         <div class="container">
-            <h1 class="logo">TOUCH EAT</h1>
+            <div class="logo-container">
+                <!-- Remplacement du texte "TOUCH EAT" par le logo -->
+                <img src="{{ asset('logo-touch-eat.png') }}" alt="Touch Eat Logo" class="logo-img" onerror="this.onerror=null; this.style.display='none'; document.getElementById('fallback-logo').style.display='block';">
+                <!-- Fallback en cas d'image non trouvée -->
+                <h1 id="fallback-logo" style="display: none; font-family: 'Poppins', sans-serif; font-size: 4rem; color: white; text-shadow: 4px 4px 0px rgba(0, 0, 0, 0.2);">
+                    TOUCH EAT
+                </h1>
+            </div>
             <p class="subtitle">Votre expérience culinaire digitale</p>
             <button class="start-button" onclick="startExperience()">
                 Commencer
@@ -386,6 +401,13 @@
                 @guest
                 document.querySelector('.choice-buttons').style.display = 'none';
                 @endguest
+                
+                // Vérifier si l'image du logo existe
+                const logoImg = document.querySelector('.logo-img');
+                logoImg.addEventListener('error', function() {
+                    this.style.display = 'none';
+                    document.getElementById('fallback-logo').style.display = 'block';
+                });
             });
         </script>
     </body>

@@ -7,26 +7,27 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
-    /**
-     * Define the application's command schedule.
-     *
-     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
-     * @return void
-     */
+    protected $commands = [
+        \App\Console\Commands\SyncSMSFiles::class,
+        \App\Console\Commands\CleanupSMSFiles::class,
+        \App\Console\Commands\SyncMobileTransCommand::class,
+    ];
+
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Synchronisation automatique toutes les minutes
+        $schedule->command('sms:sync-files')->everyMinute();
+        
+        // Synchronisation MobileTrans toutes les 2 minutes
+        $schedule->command('mobiletrans:sync')->everyTwoMinutes();
+        
+        // Nettoyage des anciens fichiers traités une fois par jour
+        $schedule->command('sms:cleanup-old-files')->daily();
     }
 
-    /**
-     * Register the commands for the application.
-     *
-     * @return void
-     */
     protected function commands()
     {
         $this->load(__DIR__.'/Commands');
-
         require base_path('routes/console.php');
     }
 }

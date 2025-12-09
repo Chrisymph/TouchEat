@@ -15,7 +15,7 @@ use App\Models\User;
 class AdminController extends Controller
 {
     /**
-     * Afficher le tableau de bord administrateur
+     * Afficher le tableau de bord administrateur - CORRIGÉ
      */
     public function dashboard()
     {
@@ -25,23 +25,28 @@ class AdminController extends Controller
         // CORRECTION : Récupérer seulement les tables des clients liés
         $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
         
-        // Statistiques - CORRECTION : Filtrer par tables liées
+        // 🔥 CORRECTION : TOUTES les requêtes filtrent par commandes payées
+        $todayOrdersQuery = Order::whereIn('table_number', $linkedClientTables)
+                                ->whereDate('created_at', $today)
+                                ->where('payment_status', 'payé'); // 🔥 AJOUT
+        
+        $allOrdersQuery = Order::whereIn('table_number', $linkedClientTables)
+                              ->where('payment_status', 'payé'); // 🔥 AJOUT
+        
+        // Statistiques - UNIQUEMENT les commandes payées
         $stats = [
-            'todayOrders' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereDate('created_at', $today)->count(),
-            'pendingOrders' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereIn('status', ['commandé', 'en_cours'])->count(),
-            'todayRevenue' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereDate('created_at', $today)->sum('total'),
-            'activeTables' => Order::whereIn('table_number', $linkedClientTables)
-                                ->whereIn('status', ['commandé', 'en_cours', 'prêt'])
+            'todayOrders' => $todayOrdersQuery->count(),
+            'pendingOrders' => $allOrdersQuery->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'todayRevenue' => $todayOrdersQuery->sum('total'),
+            'activeTables' => $allOrdersQuery->whereIn('status', ['commandé', 'en_cours', 'prêt'])
                                 ->distinct('table_number')
                                 ->count('table_number'),
         ];
 
-        // Commandes récentes - CORRECTION : Filtrer par tables liées
+        // Commandes récentes - UNIQUEMENT les commandes payées
         $recentOrders = Order::with('items')
                            ->whereIn('table_number', $linkedClientTables)
+                           ->where('payment_status', 'payé') // 🔥 AJOUT
                            ->orderBy('created_at', 'desc')
                            ->limit(5)
                            ->get();
@@ -50,18 +55,18 @@ class AdminController extends Controller
     }
 
     /**
-     * Gestion des commandes (version complète)
+     * Gestion des commandes (version complète) - CORRIGÉ
      */
     public function orders(Request $request)
     {
         $status = $request->get('status', 'pending');
         $admin = Auth::user();
         
-        // CORRECTION : Récupérer seulement les tables des clients liés
         $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
         
         $query = Order::with('items')
-                    ->whereIn('table_number', $linkedClientTables);
+                    ->whereIn('table_number', $linkedClientTables)
+                    ->where('payment_status', 'payé'); // 🔥 AJOUT
         
         switch ($status) {
             case 'pending':
@@ -77,58 +82,65 @@ class AdminController extends Controller
         
         $orders = $query->orderBy('created_at', 'desc')->get();
         
+        // CORRECTION : Les compteurs doivent aussi filtrer par commandes payées
         $orderCounts = [
             'pending' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé') // 🔥 AJOUT
                             ->whereIn('status', ['commandé', 'en_cours'])->count(),
             'ready' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé') // 🔥 AJOUT
                             ->where('status', 'prêt')->count(),
             'completed' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé') // 🔥 AJOUT
                             ->whereIn('status', ['livré', 'terminé'])->count(),
         ];
 
         return view('admin.orders', compact('orders', 'status', 'orderCounts'));
     }
 
-/**
- * Gestion des commandes (version AJAX pour le dashboard)
- */
-public function ordersAjax(Request $request)
-{
-    $status = $request->get('status', 'pending');
-    $admin = Auth::user();
-    
-    // Récupérer seulement les tables des clients liés
-    $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
-    
-    // Version simple : charger tous les champs
-    $query = Order::with('items.menuItem')
-                ->whereIn('table_number', $linkedClientTables);
-    
-    switch ($status) {
-        case 'pending':
-            $query->whereIn('status', ['commandé', 'en_cours']);
-            break;
-        case 'ready':
-            $query->where('status', 'prêt');
-            break;
-        case 'completed':
-            $query->whereIn('status', ['livré', 'terminé']);
-            break;
+    /**
+     * Gestion des commandes (version AJAX) - CORRIGÉ
+     */
+    public function ordersAjax(Request $request)
+    {
+        $status = $request->get('status', 'pending');
+        $admin = Auth::user();
+        
+        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+        
+        $query = Order::with('items.menuItem')
+                    ->whereIn('table_number', $linkedClientTables)
+                    ->where('payment_status', 'payé'); // 🔥 DÉJÀ PRÉSENT
+        
+        switch ($status) {
+            case 'pending':
+                $query->whereIn('status', ['commandé', 'en_cours']);
+                break;
+            case 'ready':
+                $query->where('status', 'prêt');
+                break;
+            case 'completed':
+                $query->whereIn('status', ['livré', 'terminé']);
+                break;
+        }
+        
+        $orders = $query->orderBy('created_at', 'desc')->get();
+
+        // Les compteurs doivent aussi refléter seulement les commandes payées
+        $orderCounts = [
+            'pending' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé')
+                            ->whereIn('status', ['commandé', 'en_cours'])->count(),
+            'ready' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé')
+                            ->where('status', 'prêt')->count(),
+            'completed' => Order::whereIn('table_number', $linkedClientTables)
+                            ->where('payment_status', 'payé')
+                            ->whereIn('status', ['livré', 'terminé'])->count(),
+        ];
+
+        return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
     }
-    
-    $orders = $query->orderBy('created_at', 'desc')->get();
-
-    $orderCounts = [
-        'pending' => Order::whereIn('table_number', $linkedClientTables)
-                        ->whereIn('status', ['commandé', 'en_cours'])->count(),
-        'ready' => Order::whereIn('table_number', $linkedClientTables)
-                        ->where('status', 'prêt')->count(),
-        'completed' => Order::whereIn('table_number', $linkedClientTables)
-                        ->whereIn('status', ['livré', 'terminé'])->count(),
-    ];
-
-    return view('admin.orders-content', compact('orders', 'status', 'orderCounts'));
-}
 
     /**
      * Afficher les détails d'une commande (CORRIGÉ)
@@ -238,6 +250,93 @@ public function ordersAjax(Request $request)
             
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Erreur lors de l\'impression du reçu');
+        }
+    }
+
+    /**
+     * Définir le temps de préparation pour une commande (NOUVELLE MÉTHODE)
+     */
+    public function setPreparationTime(Request $request, $id)
+    {
+        $request->validate([
+            'preparation_time' => 'required|integer|min:1|max:240',
+            'status' => 'required|in:commandé,en_cours'
+        ]);
+
+        try {
+            $order = Order::findOrFail($id);
+            
+            // Mettre à jour le temps estimé et le statut
+            $order->estimated_time = $request->preparation_time;
+            $order->status = 'en_cours';
+            $order->started_at = now(); // Démarrer le timer
+            
+            // Si le statut est "en_cours", initialiser started_at
+            if ($request->status === 'en_cours' && !$order->started_at) {
+                $order->started_at = now();
+            }
+            
+            $order->save();
+
+            // Log pour débogage
+            \Log::info('Temps de préparation défini', [
+                'order_id' => $id,
+                'preparation_time' => $request->preparation_time,
+                'started_at' => $order->started_at
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Temps de préparation défini et timer démarré!',
+                'order' => [
+                    'id' => $order->id,
+                    'estimated_time' => $order->estimated_time,
+                    'started_at' => $order->started_at,
+                    'status' => $order->status
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur setPreparationTime:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la définition du temps: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les données du timer pour une commande (NOUVELLE MÉTHODE)
+     */
+    public function getTimerData($id)
+    {
+        try {
+            $order = Order::findOrFail($id);
+            
+            $data = [
+                'timer_active' => $order->timer_active,
+                'estimated_time' => $order->estimated_time,
+                'elapsed_minutes' => $order->elapsed_minutes,
+                'remaining_minutes' => $order->remaining_minutes,
+                'progress_percentage' => $order->timer_progress_percentage,
+                'is_almost_expired' => $order->remaining_minutes <= 5 && $order->remaining_minutes > 0,
+                'is_expired' => $order->remaining_minutes <= 0 && $order->status === 'en_cours',
+                'formatted_remaining_time' => $order->formatted_remaining_time,
+                'formatted_elapsed_time' => $order->formatted_elapsed_time
+            ];
+
+            return response()->json([
+                'success' => true,
+                'timer_data' => $data,
+                'order_status' => $order->status
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur getTimerData:', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du timer: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -1072,6 +1171,11 @@ public function downloadDateReport(Request $request)
             $order = Order::findOrFail($id);
             $order->status = $request->status;
             
+            // Si on passe la commande en "en_cours" pour la première fois, définir started_at
+            if ($request->status === 'en_cours' && !$order->started_at) {
+                $order->started_at = now();
+            }
+            
             // Si l'admin fournit un temps estimé, l'utiliser
             if ($request->has('estimated_time') && $request->estimated_time) {
                 $order->estimated_time = $request->estimated_time;
@@ -1097,7 +1201,7 @@ public function downloadDateReport(Request $request)
     }
 
     /**
-     * Ajouter du temps à une commande existante avec ajout d'articles
+     * Ajouter du temps à une commande existante
      */
     public function addTimeToOrder(Request $request, $id)
     {
@@ -1108,40 +1212,32 @@ public function downloadDateReport(Request $request)
         try {
             $order = Order::with('items')->findOrFail($id);
 
-            // La commande doit être en cours (ou commandé)
-            if (!in_array($order->status, ['commandé', 'en_cours'])) {
+            // La commande doit être en cours
+            if ($order->status !== 'en_cours') {
                 return response()->json([
                     'success' => false,
-                    'message' => "Impossible d'ajouter du temps : la commande n'est pas active."
+                    'message' => "Impossible d'ajouter du temps : la commande n'est pas en cours de préparation."
                 ], 400);
             }
 
-            // Vérifier qu'il y a eu au moins une commande précédente du client/table
-            if (!$order->hasPreviousOrders()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Impossible d'ajouter du temps : le client n'a pas de commande précédente terminée."
-                ], 400);
+            // Vérifier que started_at est défini
+            if (!$order->started_at) {
+                $order->started_at = now();
+                $order->save();
             }
 
-            // Vérifier qu'il y a eu de réels ajouts d'articles pendant la commande en cours
-            // (seuil 30s, identique à celui du modèle)
-            if (!$order->hasRecentAdditions(30)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Ajout de temps réservé aux commandes où des articles ont été ajoutés pendant la commande."
-                ], 400);
-            }
-
-            // Ajouter le temps
+            // Ajouter le temps au temps estimé EXISTANT (ne pas écraser)
             $additional = (int)$request->input('additional_time', 0);
-            $order->estimated_time = ($order->estimated_time ?? 0) + $additional;
+            $currentEstimatedTime = $order->estimated_time ?? 0;
+            $order->estimated_time = $currentEstimatedTime + $additional;
             $order->save();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Temps supplémentaire ajouté avec succès.',
-                'new_estimated_time' => $order->estimated_time
+                'new_estimated_time' => $order->estimated_time,
+                'started_at' => $order->started_at,
+                'elapsed_minutes' => $order->started_at ? now()->diffInMinutes($order->started_at) : 0
             ]);
         } catch (\Exception $e) {
             \Log::error('Erreur addTimeToOrder:', ['id' => $id, 'error' => $e->getMessage()]);
