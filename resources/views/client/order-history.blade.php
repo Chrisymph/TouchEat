@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Historique des Commandes - Table {{ $tableNumber }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+        background: linear-gradient(180deg, #fbefe9 0%, #f9eae4 100%);
+        font-family: 'Poppins', sans-serif;
+        color: #2b2b2b;
+    }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8">
@@ -20,7 +27,8 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <a href="{{ route('client.dashboard') }}" 
-                       class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
+                        {{-- class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"> --}}
+                        class="flex items-center space-x-2 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-700 relative group">
                         ← Retour au Dashboard
                     </a>
                 </div>
@@ -32,7 +40,7 @@
         <!-- Filtres -->
         <div class="bg-white rounded-lg shadow-md p-4 mb-6">
             <div class="flex flex-wrap gap-4 items-center">
-                <span class="text-sm font-medium text-gray-700">Légende :</span>
+                <span class="text-sm font-bold text-gray-700">Légende :</span>
                 <div class="flex items-center">
                     <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
                     <span class="text-sm">Payée</span>
@@ -153,7 +161,7 @@
                     Vous n'avez pas encore passé de commande.
                 </p>
                 <a href="{{ route('client.dashboard') }}" 
-                   class="bg-blue-600 text-white px-8 py-4 rounded-md text-lg font-semibold hover:bg-blue-700 transition-colors">
+                   class="bg-orange-600 text-white px-8 py-4 rounded-md text-lg font-semibold hover:bg-orange-700 transition-colors">
                     Passer votre première commande
                 </a>
             </div>
