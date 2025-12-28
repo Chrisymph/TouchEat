@@ -1,6 +1,6 @@
 @props(['item'])
 
-<div class="bg-white rounded-lg shadow transition-all duration-200 hover:shadow-lg w-full">
+<div class="bg-white rounded-lg shadow transition-all duration-200 hover:shadow-lg">
     <div class="p-6">
         <div class="flex justify-between items-start mb-4">
             <div class="flex-1">
@@ -9,17 +9,17 @@
             </div>
             <div class="flex flex-col items-end space-y-2">
                 @if($item->promotion_discount)
-                    <span class="bg-yellow-400 text-black-800 px-2 py-1 rounded-full text-xs font-semibold mb-1">
+                    <span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold mb-1">
                         -{{ $item->promotion_discount }}%
                     </span>
-                    <div class="text-lg font-bold text-yellow-500">
+                    <div class="text-lg font-bold text-green-600">
                         {{ number_format($item->price, 0, ',', ' ') }} FCFA
                     </div>
                     <div class="text-sm text-gray-500 line-through">
                         {{ number_format($item->original_price, 0, ',', ' ') }} FCFA
                     </div>
                 @else
-                    <div class="text-lg font-bold text-orange-600">
+                    <div class="text-lg font-bold text-blue-600">
                         {{ number_format($item->price, 0, ',', ' ') }} FCFA
                     </div>
                 @endif
@@ -33,52 +33,35 @@
         
         <div class="flex justify-between items-center space-x-2">
             <div class="flex items-center space-x-2">
-                <label class="flex items-center cursor-pointer">
-                    <input 
-                        type="checkbox" 
-                        id="switch-{{ $item->id }}"
-                        onchange="handleToggleAvailability({{ $item->id }})"
-                        {{ $item->available ? 'checked' : '' }}
-                        class="hidden">
-
-                    <div class="relative w-10 h-5 rounded-full transition-colors duration-300"
-                        onclick="toggleSwitch('{{ $item->id }}')"
-                        style="background-color: {{ $item->available ? '#f97316' : '#ef4444' }};">
-                        <span id="knob-{{ $item->id }}" 
-                            class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-300"
-                            style="transform: {{ $item->available ? 'translateX(20px)' : 'translateX(0)' }};">
-                        </span>
-                    </div>
-                    <span class="ml-2 text-sm text-gray-700">Disponible</span>
-                </label>
+                <input type="checkbox" 
+                       onchange="handleToggleAvailability({{ $item->id }})"
+                       {{ $item->available ? 'checked' : '' }}
+                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <span class="text-sm text-gray-700">Disponible</span>
             </div>
             
             <div class="flex space-x-2">
                 @if($item->promotion_discount)
                     <button onclick="handleRemovePromotion({{ $item->id }})" 
-                            class="bg-gray-100 text-gray-700 px-2 py-2 rounded text-sm hover:bg-gray-200 flex items-center gap-1">
-                            <span>🏷️</span>
-                            <span>Retirer Promo</span>        
+                            class="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200">
+                        🏷️ Retirer Promo
                     </button>
                 @else
                     <button onclick="handleAddPromotion({{ $item->id }})" 
-                            class="bg-ray-100 text-yellow-700 px-2 py-2 rounded text-sm hover:bg-yellow-200 flex items-center gap-1">
-                            <span>🏷️</span>
-                            <span>Promotion</span>
+                            class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded text-sm hover:bg-yellow-200">
+                        🏷️ Promotion
                     </button>
                 @endif
                 
                 <button onclick="handleEditItem({{ json_encode($item) }})" 
-                        class="bg-gray-100 text-black-800 px-2 py-2 rounded text-sm hover:bg-blue-200 flex items-center gap-1">
-                        <span>✏️</span>
-                        <span>Modifier</span>
-                     
+                        class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-sm hover:bg-blue-200">
+                    ✏️ Modifier
                 </button>
                 
                 <!-- REMPLACER le formulaire par un bouton avec fonction JavaScript -->
                 <button onclick="handleDeleteItem({{ $item->id }})" 
-                        class="bg-red-500 text-red-700 px-2 py-2 rounded text-sm hover:bg-red-700">
-                    🗑️
+                        class="bg-red-100 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-200">
+                    🗑️ Supprimer
                 </button>
             </div>
         </div>

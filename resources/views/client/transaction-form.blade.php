@@ -8,13 +8,8 @@
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
         .gradient-bg {
-            background: linear-gradient(135deg, #ff9b4a 15%, #ff6a00 75%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
-        body {
-        background: linear-gradient(180deg, #fbefe9 0%, #f9eae4 100%);
-        font-family: 'Poppins', sans-serif;
-        color: #2b2b2b;
-    }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -63,7 +58,7 @@
                                 Réseau Mobile Money *
                             </label>
                             <select name="network" required
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="">Choisissez votre réseau...</option>
                                 <option value="mtn">MTN Money</option>
                                 <option value="moov">Moov Money</option>
@@ -78,7 +73,7 @@
                             </label>
                             <input type="tel" name="phone_number" required
                                    placeholder="ex: 01 67 12 56 78"
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <p class="text-xs text-gray-500 mt-1">Doit correspondre au numéro utilisé pour le paiement</p>
                         </div>
 
@@ -89,7 +84,7 @@
                             </label>
                             <input type="text" name="transaction_id" required
                                    placeholder="Ex: 012569878269"
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <p class="text-sm text-gray-500 mt-1">
                                 Trouvez cet ID dans le SMS de confirmation reçu
                             </p>
@@ -144,7 +139,7 @@
                             </a>
                         @endif
                         <button type="submit" 
-                                class="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-semibold transition-colors">
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors">
                             Vérifier le Paiement
                         </button>
                     </div>

@@ -9,13 +9,12 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         .gradient-bg {
-            background: linear-gradient(135deg, #ff9b4a 15%, #ff6a00 75%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
         .card-hover {
             transition: all 0.3s ease;
         }
         .card-hover:hover {
-            background-color: #ff9b4a;
             transform: translateY(-5px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
@@ -23,68 +22,51 @@
             opacity: 0.6;
             pointer-events: none;
         }
-        body {
-        background: linear-gradient(180deg, #fbefe9 0%, #f9eae4 100%);
-        font-family: 'Poppins', sans-serif;
-        color: #2b2b2b;
-        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col" x-data="clientInterface()">
-
-    <!-- CONTENEUR GLOBAL DES TOASTS -->
-    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
-
+<body class="bg-gray-50 min-h-screen">
     <!-- Header -->
     <div class="gradient-bg text-white">
         <div class="container mx-auto px-4 py-6">
             <div class="flex justify-between items-center">
-                <template x-if="currentView === 'home'">
-                    <div class="text-center flex-1">
-                        <h1 class="text-3xl font-bold mb-2">Bienvenue à notre Restaurant</h1>
+                <div class="text-center flex-1">
+                    <h1 class="text-3xl font-bold mb-2">Bienvenue à notre Restaurant</h1>
+                    <div class="flex justify-center items-center space-x-4 text-lg">
+                        <span>Table N°{{ $tableNumber }}</span>
+                        <span class="text-white/70">•</span>
+                        <span class="text-white/80">Commandez directement depuis votre table</span>
                     </div>
-                </template>
-                <template x-if="currentView !== 'home'">
-                    <div class="flex-1"></div>
-                </template>
+                </div>
                 <form action="{{ route('logout') }}" method="POST">
                     @csrf
                     <button type="submit" 
-                    class="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg font-semibold transition-colors backdrop-blur-sm">
-                    Déconnexion
-                </button>
-            </form>
+                            class="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg font-semibold transition-colors backdrop-blur-sm">
+                        Déconnexion
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
-</div>
-
-    <template x-if="currentView === 'home'">
-        <div class="mt-10 flex justify-center items-center space-x-4 text-lg">
-            <span>Table N°{{ $tableNumber }}</span>
-            <span class="text-black/70">•</span>
-            <span class="text-black/80">Commandez directement depuis votre table</span>
-        </div>
-    </template>
 
     <!-- Main Content -->
-    <div class="container mx-auto px-4 py-8" :class="{'flex-1 flex items-center justify-center': currentView === 'home'}">
+    <div class="container mx-auto px-4 py-8" x-data="clientInterface()">
         <!-- Navigation Cards (visible seulement sur la page d'accueil) -->
         <template x-if="currentView === 'home'">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-12">
                 <!-- Menu Card -->
                 <button @click="currentView = 'menu'" 
-                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover group">
+                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover">
                     <div class="text-6xl mb-4">📋</div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-white">Menu</h3>
-                    <p class="text-gray-600 group-hover:text-white">Découvrez notre carte</p>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Menu</h3>
+                    <p class="text-gray-600">Découvrez notre carte</p>
                 </button>
 
                 <!-- Panier Card -->
                 <button @click="currentView = 'cart'" 
-                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover relative group">
+                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover relative">
                     <div class="text-6xl mb-4">🛒</div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-white">Panier</h3>
-                    <p class="text-gray-600 group-hover:text-white">Vos articles sélectionnés</p>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Panier</h3>
+                    <p class="text-gray-600">Vos articles sélectionnés</p>
                     <template x-if="cartCount > 0">
                         <span class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold shadow-lg" 
                               x-text="cartCount"></span>
@@ -93,10 +75,10 @@
 
                 <!-- Historique Card -->
                 <button @click="currentView = 'history'" 
-                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover group">
+                        class="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100 hover:shadow-xl transition-all duration-300 card-hover">
                     <div class="text-6xl mb-4">📜</div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-white">Historique</h3>
-                    <p class="text-gray-600 group-hover:text-white">Vos commandes passées</p>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Historique</h3>
+                    <p class="text-gray-600">Vos commandes passées</p>
                 </button>
             </div>
         </template>
@@ -108,9 +90,9 @@
                 <div class="flex items-center justify-between mb-8">
                     <button 
                         @click="currentView = 'home'" 
-                        class="flex items-center space-x-2 text-gray-700 hover:text-orange-600 transition-all duration-300 font-semibold group">
+                        class="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-all duration-300 font-semibold group">
                         <span class="text-2xl group-hover:-translate-x-1 transition-transform duration-300">←</span>
-                        <span class="group-hover:text-orange-600">Retour</span>
+                        <span class="group-hover:text-blue-600">Retour</span>
                     </button>
 
                     <h1 class="text-4xl font-bold text-gray-800 text-center flex-1">
@@ -126,9 +108,7 @@
                     <!-- Bouton Panier avec badge -->
                     <button 
                         @click="currentView = 'cart'" 
-                        {{-- class="flex items-center space-x-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 relative group"> --}}
-                        class="flex items-center space-x-2 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-700 relative group">
-
+                        class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 relative group">
                         <span class="text-xl">🛒</span>
                         <span>Panier</span>
                         <template x-if="cartCount > 0">
@@ -143,12 +123,12 @@
                 <div class="flex justify-center mb-12">
                     <div class="bg-white rounded-lg p-1 shadow-sm border border-gray-200">
                         <button @click="activeCategory = 'repas'" 
-                                :class="activeCategory === 'repas' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-white-100 text-gray-600 hover:bg-orange-200'"
+                                :class="activeCategory === 'repas' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:text-gray-800 bg-white'"
                                 class="px-8 py-3 rounded-md font-semibold transition-all duration-200">
                             🍝Repas
                         </button>
                         <button @click="activeCategory = 'boisson'" 
-                                :class="activeCategory === 'boisson' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-white-100 text-gray-600 hover:bg-orange-200'"
+                                :class="activeCategory === 'boisson' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:text-gray-800 bg-white'"
                                 class="px-8 py-3 rounded-md font-semibold transition-all duration-200">
                             🥤Boissons
                         </button>
@@ -202,7 +182,7 @@
                                             <button 
                                                 @click="addToCart(item)" 
                                                 :class="isAddingToExistingOrder ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'"
-                                                class="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-700 hover:to-orange-800 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center space-x-2 min-w-[120px] justify-center">
+                                                class="text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center space-x-2 min-w-[120px] justify-center">
                                                 <span class="text-lg">+</span>
                                                 <span>
                                                     <template x-if="isAddingToExistingOrder">Ajouter</template>
@@ -236,9 +216,9 @@
                 <div class="flex items-center justify-between mb-8">
                     <button 
                         @click="currentView = 'home'" 
-                        class="flex items-center space-x-2 text-gray-700 hover:text-orange-600 transition-all duration-300 font-semibold group">
+                        class="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-all duration-300 font-semibold group">
                         <span class="text-2xl group-hover:-translate-x-1 transition-transform duration-300">←</span>
-                        <span class="group-hover:text-orange-600">Retour</span>
+                        <span class="group-hover:text-blue-600">Retour</span>
                     </button>
                     <h2 class="text-3xl font-bold text-gray-800 text-center">
                         Panier <span x-text="cartCount > 0 ? `(${cartCount} article${cartCount > 1 ? 's' : ''})` : ''"></span>
@@ -259,7 +239,7 @@
                         <h3 class="text-3xl font-bold text-gray-600 mb-4">Votre panier est vide</h3>
                         <p class="text-xl text-gray-500 mb-8">Ajoutez des articles depuis le menu</p>
                         <button @click="currentView = 'menu'" 
-                                class="bg-orange-600 hover:bg-orange-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                             Voir le Menu
                         </button>
                     </div>
@@ -291,19 +271,19 @@
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center space-x-3">
                                             <button @click="updateQuantity(item.id, item.quantity - 1, item.order_id)" 
-                                                    class="bg-gray-100 text-gray-700 w-10 h-10 rounded-lg hover:bg-orange-300 transition-colors font-bold">
+                                                    class="bg-gray-100 text-gray-700 w-10 h-10 rounded-lg hover:bg-gray-200 transition-colors font-bold">
                                                 -
                                             </button>
                                             <span class="text-xl font-semibold w-8 text-center text-gray-800" 
                                                   x-text="item.quantity"></span>
                                             <button @click="updateQuantity(item.id, item.quantity + 1, item.order_id)" 
-                                                    class="bg-gray-100 text-gray-700 w-10 h-10 rounded-lg hover:bg-orange-300 transition-colors font-bold">
+                                                    class="bg-gray-100 text-gray-700 w-10 h-10 rounded-lg hover:bg-gray-200 transition-colors font-bold">
                                                 +
                                             </button>
                                         </div>
                                         
                                         <div class="text-right">
-                                            <div class="text-xl font-bold text-green-400" 
+                                            <div class="text-xl font-bold text-gray-800" 
                                                  x-text="formatPrice(item.price * item.quantity)"></div>
                                             <button @click="updateQuantity(item.id, 0, item.order_id)" 
                                                     class="text-red-500 hover:text-red-700 text-sm font-semibold mt-1 transition-colors duration-300">
@@ -332,7 +312,7 @@
                                 <div class="border-t pt-4 mb-6">
                                     <div class="flex justify-between items-center text-xl font-bold text-gray-800">
                                         <span>Total</span>
-                                        <span class="text-green-600" x-text="formatPrice(cartTotal)"></span>
+                                        <span x-text="formatPrice(cartTotal)"></span>
                                     </div>
                                 </div>
                                 
@@ -340,19 +320,19 @@
                                     <!-- Boutons avec les bonnes fonctions -->
                                     <template x-if="isAddingToExistingOrder">
                                         <button @click="showAddToOrderConfirmationModal = true" 
-                                                class="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                                class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                             ➕ Ajouter à la commande existante
                                         </button>
                                     </template>
                                     <template x-if="!isAddingToExistingOrder">
                                         <button @click="showPaymentModal = true" 
-                                                class="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                             🍽️ Commander sur place
                                         </button>
                                     </template>
                                     
                                     <button @click="showDeliveryModal = true" 
-                                                class="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                                            class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                                         🚗 Livraison
                                     </button>
 
@@ -375,9 +355,9 @@
                 <div class="flex items-center justify-between mb-8">
                     <button 
                         @click="currentView = 'home'" 
-                        class="flex items-center space-x-2 text-gray-700 hover:text-orange-600 transition-all duration-300 font-semibold group">
+                        class="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-all duration-300 font-semibold group">
                         <span class="text-2xl group-hover:-translate-x-1 transition-transform duration-300">←</span>
-                        <span class="group-hover:text-orange-600">Retour à l'accueil</span>
+                        <span class="group-hover:text-blue-600">Retour à l'accueil</span>
                     </button>
                     
                     <h2 class="text-3xl font-bold text-gray-800 text-center">
@@ -385,8 +365,7 @@
                     </h2>
                     
                     <a href="{{ route('client.order.history') }}" 
-                       {{-- class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"> --}}
-                       class="flex items-center space-x-2 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-700 relative group">
+                       class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                         Voir détail complet
                     </a>
                 </div>
@@ -397,7 +376,7 @@
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">Dernières commandes</h3>
                         <p class="text-gray-600 text-sm mb-4">Vos 3 commandes les plus récentes</p>
                         <a href="{{ route('client.order.history') }}" 
-                           class="text-orange-600 hover:text-orange-700 font-semibold text-sm">
+                           class="text-blue-600 hover:text-blue-700 font-semibold text-sm">
                             Voir tout l'historique →
                         </a>
                     </div>
@@ -411,12 +390,12 @@
                 <!-- Message d'information -->
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
                     <div class="text-4xl mb-4">📋</div>
-                    <h3 class="text-xl font-semibold text-black-800 mb-2">Historique complet disponible</h3>
-                    <p class="text-black-700 mb-4">
+                    <h3 class="text-xl font-semibold text-blue-800 mb-2">Historique complet disponible</h3>
+                    <p class="text-blue-700 mb-4">
                         Consultez toutes vos commandes passées avec les détails complets sur la page dédiée
                     </p>
                     <a href="{{ route('client.order.history') }}" 
-                       class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                       class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                         Accéder à l'historique complet
                     </a>
                 </div>
@@ -437,7 +416,7 @@
                                 Réseau Mobile Money <span class="text-red-500">*</span>
                             </label>
                             <select x-model="selectedNetwork" 
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent">
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="mtn">MTN Money</option>
                                 <option value="moov">Moov Money</option>
                                 <option value="celtis">Celtis Money</option>
@@ -451,13 +430,13 @@
                             <input type="tel" x-model="phoneNumber" 
                                    placeholder="ex: 77 123 45 67"
                                    required
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent">
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div class="flex justify-between items-center text-lg font-semibold">
                                 <span class="text-gray-700">Total à payer</span>
-                                <span class="text-green-600" x-text="formatPrice(cartTotal)"></span>
+                                <span class="text-gray-800" x-text="formatPrice(cartTotal)"></span>
                             </div>
                         </div>
                     </div>
@@ -470,8 +449,8 @@
                         <button @click="placeOrder('sur_place')" 
                                 :disabled="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment"
                                 :class="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment ? 
-                                    'bg-orange-400 cursor-not-allowed' : 
-                                    'bg-green-500 hover:bg-green-600'"
+                                    'bg-blue-400 cursor-not-allowed' : 
+                                    'bg-blue-600 hover:bg-blue-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
                             <template x-if="isProcessingPayment">Traitement...</template>
                             <template x-if="!isProcessingPayment">Confirmer</template>
@@ -495,7 +474,7 @@
                                 Réseau Mobile Money <span class="text-red-500">*</span>
                             </label>
                             <select x-model="selectedNetwork" 
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:-orange-300  focus:border-transparent">
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="mtn">MTN Money</option>
                                 <option value="moov">Moov Money</option>
                                 <option value="celtis">Celtis Money</option>
@@ -509,7 +488,7 @@
                             <input type="tel" x-model="phoneNumber" 
                                    placeholder="ex: 77 123 45 67"
                                    required
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent">
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -531,8 +510,8 @@
                         <button @click="addToExistingOrder()" 
                                 :disabled="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment"
                                 :class="!phoneNumber.trim() || !selectedNetwork || isProcessingPayment ? 
-                                    'bg-orange-400 cursor-not-allowed' : 
-                                    'bg-green-500 hover:bg-green-600'"
+                                    'bg-green-400 cursor-not-allowed' : 
+                                    'bg-green-600 hover:bg-green-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
                             <template x-if="isProcessingPayment">Traitement...</template>
                             <template x-if="!isProcessingPayment">Payer les nouveaux articles</template>
@@ -556,7 +535,7 @@
                                 Réseau Mobile Money <span class="text-red-500">*</span>
                             </label>
                             <select x-model="selectedNetwork" 
-                                      class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"></textarea>
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="mtn">MTN Money</option>
                                 <option value="moov">Moov Money</option>
                                 <option value="celtis">Celtis Money</option>
@@ -570,7 +549,7 @@
                             <input type="tel" x-model="phoneNumber" 
                                    placeholder="ex: 77 123 45 67"
                                    required
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300focus:border-transparent"></textarea>
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         
                         <div>
@@ -580,7 +559,7 @@
                             <input type="text" x-model="deliveryAddress" 
                                    placeholder="Ex: Table 5, Zone VIP, Terrasse..."
                                    required
-                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"></textarea>
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                             <p class="text-xs text-gray-500 mt-1">Indiquez l'emplacement exact où nous devons vous livrer</p>
                         </div>
                         
@@ -589,13 +568,13 @@
                             <textarea x-model="deliveryNotes" 
                                       placeholder="Instructions spéciales, étage, code porte, etc."
                                       rows="3"
-                                      class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"></textarea>
+                                      class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div class="flex justify-between items-center text-lg font-semibold">
                                 <span class="text-gray-700">Total à payer</span>
-                                <span class="text-green-600" x-text="formatPrice(cartTotal)"></span>
+                                <span class="text-gray-800" x-text="formatPrice(cartTotal)"></span>
                             </div>
                         </div>
                     </div>
@@ -608,8 +587,8 @@
                         <button @click="placeOrder('livraison')" 
                                 :disabled="!phoneNumber.trim() || !deliveryAddress.trim() || !selectedNetwork || isProcessingPayment"
                                 :class="!phoneNumber.trim() || !deliveryAddress.trim() || !selectedNetwork || isProcessingPayment ? 
-                                    'bg-orange-400 cursor-not-allowed' : 
-                                    'bg-green-500 hover:bg-green-600'"
+                                    'bg-green-400 cursor-not-allowed' : 
+                                    'bg-green-600 hover:bg-green-700'"
                                 class="flex-1 text-white py-3 rounded-lg font-semibold transition-all duration-300">
                             <template x-if="isProcessingPayment">Traitement...</template>
                             <template x-if="!isProcessingPayment">Commander en livraison</template>
@@ -879,38 +858,16 @@
                 }
             },
 
-            // showToast(message, type = 'success') {
-            //     const toast = document.createElement('div');
-            //     toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
-            //         type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            //     }`;
-            //     toast.textContent = message;
-            //     document.body.appendChild(toast);
-
-            //     setTimeout(() => {
-            //         toast.remove();
-            //     }, 3000);
-            // }
             showToast(message, type = 'success') {
-                const container = document.getElementById('toast-container');
-
                 const toast = document.createElement('div');
-                toast.className = `
-                    top-4 right-4 px-6 py-3 rounded-lg text-white shadow-lg font-semibold transition-all duration-300 opacity-0
-                    ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}
-                `;
+                toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
+                    type === 'success' ? 'bg-green-500' : 'bg-red-500'
+                }`;
                 toast.textContent = message;
-                container.appendChild(toast);
-                // Animation fade-in
+                document.body.appendChild(toast);
+
                 setTimeout(() => {
-                    toast.style.opacity = "1";
-                    toast.style.transform = "translateY(0)";
-                }, 50);
-                // Disparition après 3 sec
-                setTimeout(() => {
-                    toast.style.opacity = "0";
-                    toast.style.transform = "translateY(-10px)";
-                    setTimeout(() => toast.remove(), 300);
+                    toast.remove();
                 }, 3000);
             }
         }

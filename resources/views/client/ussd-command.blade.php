@@ -9,18 +9,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <style>
         .gradient-bg {
-            background: linear-gradient(135deg, #ff9b4a 15%, #ff6a00 75%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
         .ussd-code {
             font-family: 'Courier New', monospace;
             background: #f8f9fa;
             border: 2px dashed #dee2e6;
         }
-          body {
-        background: linear-gradient(180deg, #fbefe9 0%, #f9eae4 100%);
-        font-family: 'Poppins', sans-serif;
-        color: #2b2b2b;
-    }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -95,7 +90,7 @@
             <div class="bg-white rounded-2xl shadow-lg p-8 mb-8">
                 <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">
                     Instructions de Paiement - 
-                    <span class="text-orange-600">
+                    <span class="text-blue-600">
                         @if($selectedNetwork === 'mtn')
                             MTN Money
                         @elseif($selectedNetwork === 'moov')
@@ -133,19 +128,19 @@
                 <h4 class="text-xl font-bold text-gray-800 mb-4">Comment procéder :</h4>
                 <div class="space-y-4">
                     <div class="flex items-start space-x-3">
-                        <span class="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">1</span>
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">1</span>
                         <p class="text-gray-700">Ouvrez votre application Téléphone sur votre Android</p>
                     </div>
                     <div class="flex items-start space-x-3">
-                        <span class="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">2</span>
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">2</span>
                         <p class="text-gray-700">Copiez manuellement la commande USSD, soit scannez le QR Code puis copiez et coller le texte dans votre application Téléphone </p>
                     </div>
                     <div class="flex items-start space-x-3">
-                        <span class="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">3</span>
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">3</span>
                         <p class="text-gray-700">Confirmez la transaction avec votre code PIN</p>
                     </div>
                     <div class="flex items-start space-x-3">
-                        <span class="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">4</span>
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-1 flex-shrink-0">4</span>
                         <p class="text-gray-700">Votre paiement sera traité automatiquement</p>
                     </div>
                 </div>
@@ -155,12 +150,12 @@
             <div class="text-center mt-8 space-y-4">
                 @if(isset($paymentId))
                     <a href="{{ route('client.payment.form.payment', ['order' => $order->id, 'payment' => $paymentId]) }}" 
-                       class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                       class="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                         ✅ J'ai payé - Saisir l'ID de Transaction
                     </a>
                 @else
                     <a href="{{ route('client.payment.form', $order->id) }}" 
-                       class="inline-block bg-orange-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                       class="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
                         ✅ J'ai payé - Saisir l'ID de Transaction
                     </a>
                 @endif

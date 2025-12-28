@@ -2,36 +2,26 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h2 class="text-3xl font-bold">Gestion du Menu</h2>
-        <button data-add-item class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <button data-add-item class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
             ➕ Ajouter un Article
         </button>
     </div>
 
     <!-- Onglets du menu -->
-<div class="mb-6 flex justify-center">
-<div class="bg-white shadow rounded-lg overflow-hidden w-full max-w-7xl"> 
-    <div class="flex divide-x divide-gray-200">
-      
-      <button data-category="repas" 
-              class="w-1/2 py-3 font-semibold text-sm transition-all duration-200
-              {{ $category === 'repas' 
-                  ? 'bg-orange-100 text-orange-600' 
-                  : 'bg-gray-50 text-gray-500 hover:bg-gray-100' }}">
-        🍽️ Repas ({{ $categories['repas'] }})
-      </button>
-
-      <button data-category="boisson" 
-              class="w-1/2 py-3 font-semibold text-sm transition-all duration-200
-              {{ $category === 'boisson' 
-                  ? 'bg-orange-100 text-orange-600' 
-                  : 'bg-gray-50 text-gray-500 hover:bg-gray-100' }}">
-        🥤 Boissons ({{ $categories['boisson'] }})
-      </button>
-
+    <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+            <button data-category="repas" 
+                   class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 
+                          {{ $category === 'repas' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                🍽️ Repas ({{ $categories['repas'] }})
+            </button>
+            <button data-category="boisson" 
+                   class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 
+                          {{ $category === 'boisson' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                🥤 Boissons ({{ $categories['boisson'] }})
+            </button>
+        </nav>
     </div>
-  </div> 
-</div> 
-
 
     <!-- Contenu des onglets -->
     <div>

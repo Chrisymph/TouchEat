@@ -3,7 +3,7 @@
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-gray-800">Gestion des Clients</h2>
         <button onclick="openAddClientModal()" 
-                class="bg-orange-500 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
             <span class="flex items-center space-x-2">
                 <span>➕</span>
                 <span>Ajouter Client</span>
@@ -37,7 +37,7 @@
                 </div>
             @else
                 @foreach($linkedClients as $client)
-                <div class="px-6 py-4 hover:bg-orange-100 transition-colors duration-200">
+                <div class="px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
                     <div class="grid grid-cols-12 gap-4 items-center">
                         <!-- Informations client -->
                         <div class="col-span-4">

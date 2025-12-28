@@ -3,32 +3,32 @@
 @section('content')
 <div x-data="dashboardComponent()" x-init="init()" x-ref="dashboard">
     <!-- Onglets -->
-    <div class="mb-6 flex justify-center">
-        <div class="bg-gray-200 rounded-lg shadow-sm inline-flex py-1 px-1">
-            <nav class="flex space-x-2">
+    <div class="mb-6">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8">
                 <button @click="switchTab('overview')" 
-                        :class="activeTab === 'overview' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                        :class="activeTab === 'overview' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     Vue d'ensemble
                 </button>
                 <button @click="switchTab('orders')" 
-                        :class="activeTab === 'orders' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                        :class="activeTab === 'orders' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     Commandes
                 </button>
                 <button @click="switchTab('menu')" 
-                        :class="activeTab === 'menu' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                        :class="activeTab === 'menu' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     Menu
                 </button>
                 <button @click="switchTab('clients')" 
-                        :class="activeTab === 'clients' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                        :class="activeTab === 'clients' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     Clients
                 </button>
                 <button @click="switchTab('reports')" 
-                        :class="activeTab === 'reports' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                        :class="activeTab === 'reports' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     Rapports
                 </button>
             </nav>
@@ -39,47 +39,47 @@
     <div x-show="activeTab === 'overview'" class="space-y-6">
         <!-- Cartes de statistiques -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-bold text-black-600">Commandes Aujourd'hui</p>
-                    <div class="text-2xl rounded-full">📊</div>
-                </div>
-                <div class="mt-2">
-                    <p class="text-2xl font-bold text-orange-600">{{ $stats['todayOrders'] }}</p>
-                    <p class="text-xs text-gray-500">+2 depuis hier</p>
-                </div>                
-            </div>
-
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-bold text-black-600">Commandes en Attente</p>
-                    <div class="rounded-full text-2xl">⏳</div>
-                </div>
-                <div class="mt-2">
-                    <p class="text-2xl font-bold text-yellow-500">{{ $stats['pendingOrders'] }}</p>
-                    <p class="text-xs text-gray-500">À traiter</p>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-600 text-2xl">📊</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Commandes Aujourd'hui</p>
+                        <p class="text-2xl font-bold text-primary">{{ $stats['todayOrders'] }}</p>
+                        <p class="text-xs text-gray-500">+2 depuis hier</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-bold text-black-600">Revenus Aujourd'hui</p>
-                    <div class="text-2xl">💰</div>
-                </div>  
-                <div class="mt-2">                        
-                    <p class="text-2xl font-bold text-green-600">{{ number_format($stats['todayRevenue'], 0, ',', ' ') }} FCFA</p>
-                    <p class="text-xs text-gray-500">+12% depuis hier</p>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-600 text-2xl">⏳</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Commandes en Attente</p>
+                        <p class="text-2xl font-bold text-yellow-600">{{ $stats['pendingOrders'] }}</p>
+                        <p class="text-xs text-gray-500">À traiter</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-bold text-black-600">Tables Actives</p>
-                    <div class="text-2xl">🪑</div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-600 text-2xl">💰</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Revenus Aujourd'hui</p>
+                        <p class="text-2xl font-bold text-green-600">{{ number_format($stats['todayRevenue'], 0, ',', ' ') }} FCFA</p>
+                        <p class="text-xs text-gray-500">+12% depuis hier</p>
+                    </div>
                 </div>
-                <div class="mt-2">                 
-                    <p class="text-2xl font-bold text-yellow-600">{{ $stats['activeTables'] }}/12</p>
-                    <p class="text-xs text-gray-500">Tables occupées</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-purple-100 text-purple-600 text-2xl">🪑</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Tables Actives</p>
+                        <p class="text-2xl font-bold text-yellow-600">{{ $stats['activeTables'] }}/12</p>
+                        <p class="text-xs text-gray-500">Tables occupées</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -89,8 +89,7 @@
             <div class="px-6 py-4 border-b border-gray-200">
                 <div class="flex justify-between items-center">
                     <h2 class="text-lg font-semibold">Commandes Récentes</h2>
-                    <button @click="switchTab('orders')" class="bg-gray-200 font-bold text-black hover:bg-blue-600 
-                        hover:text-white text-sm px-3 py-2 rounded transition-colors">
+                    <button @click="switchTab('orders')" class="text-blue-600 hover:text-blue-800 text-sm">
                         Voir tout →
                     </button>
                 </div>
@@ -2128,10 +2127,10 @@ document.addEventListener('alpine:init', () => {
                             label: 'Revenus (FCFA)',
                             data: chartData.map(item => item.totalRevenue),
                             backgroundColor: chartData.map(item => 
-                                item.category === 'repas' ? 'rgba(249, 115, 22, 0.8)' : 'rgba(239, 68, 68, 0.8)'
+                                item.category === 'repas' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(147, 51, 234, 0.8)'
                             ),
                             borderColor: chartData.map(item =>
-                                item.category === 'repas' ? 'rgb(249, 115, 22)' : 'rgb(239, 68, 68)'
+                                item.category === 'repas' ? 'rgb(59, 130, 246)' : 'rgb(147, 51, 234)'
                             ),
                             borderWidth: 2,
                             borderRadius: 8,
