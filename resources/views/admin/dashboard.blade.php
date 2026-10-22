@@ -1,39 +1,53 @@
 @extends('layouts.admin')
 
 @section('content')
-<div x-data="dashboardComponent()" x-init="init()" x-ref="dashboard">
-    <!-- Onglets -->
-    <div class="mb-6 flex justify-center">
-        <div class="bg-gray-200 rounded-lg shadow-sm inline-flex py-1 px-1">
-            <nav class="flex space-x-2">
-                <button @click="switchTab('overview')" 
-                        :class="activeTab === 'overview' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
-                    Vue d'ensemble
-                </button>
-                <button @click="switchTab('orders')" 
-                        :class="activeTab === 'orders' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
-                    Commandes
-                </button>
-                <button @click="switchTab('menu')" 
-                        :class="activeTab === 'menu' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
-                    Menu
-                </button>
-                <button @click="switchTab('clients')" 
-                        :class="activeTab === 'clients' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
-                    Clients
-                </button>
-                <button @click="switchTab('reports')" 
-                        :class="activeTab === 'reports' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
-                        class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
-                    Rapports
-                </button>
-            </nav>
-        </div>
+<div x-data="dashboardComponent()" x-init="init()" x-ref="dashboard"
+     x-bind:data-showaddtable="showAddTableModal"
+     x-bind:data-showbulk="showBulkModal">
+<!-- Onglets + bouton QR Codes -->
+<div class="mb-6 flex justify-center items-center gap-3 flex-wrap">
+
+    <!-- Onglets existants -->
+    <div class="bg-gray-200 rounded-lg shadow-sm inline-flex py-1 px-1">
+        <nav class="flex space-x-2">
+            <button @click="switchTab('overview')" 
+                    :class="activeTab === 'overview' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
+                    class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                Vue d'ensemble
+            </button>
+            <button @click="switchTab('orders')" 
+                    :class="activeTab === 'orders' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
+                    class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                Commandes
+            </button>
+            <button @click="switchTab('menu')" 
+                    :class="activeTab === 'menu' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
+                    class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                Menu
+            </button>
+            <button @click="switchTab('clients')" 
+                    :class="activeTab === 'clients' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
+                    class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                Clients
+            </button>
+            <button @click="switchTab('reports')" 
+                    :class="activeTab === 'reports' ? 'bg-orange-100 text-orange-600 font-semibold ring-2 ring-orange-400' : 'bg-gray-100 text-gray-600 hover:bg-orange-200'"
+                    class="whitespace-nowrap py-2 px-4 rounded-md transition-all duration-200">
+                Rapports
+            </button>
+        </nav>
     </div>
+
+    <!-- Bouton QR Codes (lien externe) -->
+    <a href="{{ route('admin.table.qrcodes') }}"
+       class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-all duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 1v2h2V5H5zm6-1a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm2 1v2h2V5h-2zM3 14a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm2 1v0h2v0H5zm6-1a1 1 0 011-1h1v-2h-2V9h-1a1 1 0 00-1 1v1h1v1h-2v-1h1V9h1V8h-2V7h1V6h-1V5h1v1h1v1h1v1h1v1h-1v1h1v1h-1v1h1v1h-1z" clip-rule="evenodd" />
+        </svg>
+        QR Codes des tables
+    </a>
+
+</div>
 
     <!-- Vue d'ensemble -->
     <div x-show="activeTab === 'overview'" class="space-y-6">
@@ -206,6 +220,31 @@
 
     <!-- Onglet Clients (chargement AJAX) -->
     <div x-show="activeTab === 'clients'" id="clients-container">
+
+        <!-- Boutons d'action : gestion des tables -->
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+            <button @click="showAddTableModal = true; addTableError = ''"
+                    class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-all duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Ajouter une table
+            </button>
+
+            <button @click="showBulkModal = true"
+                    class="inline-flex items-center gap-2 border border-green-600 text-green-600 hover:bg-green-50 font-semibold py-2 px-4 rounded-lg transition-all duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Créer plusieurs tables (1→N)
+            </button>
+
+            <a href="{{ route('admin.table.qrcodes') }}"
+               class="inline-flex items-center gap-2 border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-2 px-4 rounded-lg transition-all duration-200">
+                📱 Voir / imprimer les QR
+            </a>
+        </div>
+
         <template x-if="!loading && !error">
             <div x-html="clientsContent"></div>
         </template>
@@ -251,6 +290,94 @@
         <div class="text-6xl mb-4">🔄</div>
         <p class="text-lg text-gray-600">Chargement du contenu...</p>
     </div>
+
+    <!-- ======================================================= -->
+    <!-- MODALES : GESTION DES TABLES (CLIENTS) - NOUVEAU       -->
+    <!-- ======================================================= -->
+
+    <!-- Modale : Ajouter une table -->
+    <div x-show="showAddTableModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showAddTableModal = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">🪑 Nouvelle table</h3>
+                    <button @click="showAddTableModal = false" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                </div>
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">Numéro de table</label>
+                <input type="number" min="1" x-model="newTableNumber"
+                       @keydown.enter="submitAddTable()"
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                       placeholder="ex: 13">
+
+                <p x-show="addTableError" class="text-red-500 text-sm mb-2" x-text="addTableError"></p>
+
+                <p class="text-xs text-gray-500 mb-4">
+                    💡 Un QR code unique sera généré automatiquement.
+                </p>
+
+                <div class="flex justify-end gap-2">
+                    <button @click="showAddTableModal = false; addTableError = ''"
+                            class="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">
+                        Annuler
+                    </button>
+                    <button @click="submitAddTable()"
+                            :disabled="submittingTable"
+                            class="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">
+                        <span x-text="submittingTable ? 'Création...' : 'Créer la table'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale : Créer plusieurs tables -->
+    <div x-show="showBulkModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showBulkModal = false">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">📦 Créer plusieurs tables</h3>
+                    <button @click="showBulkModal = false" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">De</label>
+                        <input type="number" min="1" x-model.number="bulkFrom"
+                               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">À</label>
+                        <input type="number" min="1" x-model.number="bulkTo"
+                               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                </div>
+
+                <p class="text-xs text-gray-500 mb-4">
+                    💡 Les tables déjà existantes seront ignorées (pas d'erreur).
+                </p>
+
+                <p x-show="bulkError" class="text-red-500 text-sm mb-2" x-text="bulkError"></p>
+
+                <div class="flex justify-end gap-2">
+                    <button @click="showBulkModal = false; bulkError = ''"
+                            class="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">
+                        Annuler
+                    </button>
+                    <button @click="submitBulk()"
+                            :disabled="submittingBulk"
+                            class="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">
+                        <span x-text="submittingBulk ? 'Création...' : 'Créer les tables'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Modal pour définir le temps de préparation -->
@@ -717,6 +844,71 @@ async function previewReceipt(orderId) {
     } catch (error) {
         console.error('Erreur prévisualisation reçu:', error);
         showToast('❌ Erreur lors de la prévisualisation: ' + error.message, 'error');
+    }
+}
+
+// ============================================================================
+// FONCTIONS POUR LA GESTION DES TABLES CLIENTS (NOUVEAU)
+// ============================================================================
+
+/**
+ * Régénérer le QR token d'une table
+ */
+async function regenerateQr(clientId) {
+    if (!confirm('Régénérer le QR ? L\'ancien ne fonctionnera plus.')) return;
+
+    try {
+        const res = await fetch(`/admin/clients/${clientId}/regenerate-qr`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+            },
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            if (data.qr_url) {
+                window.open(data.qr_url, '_blank');
+            }
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadClients();
+            }
+        } else {
+            showToast('❌ ' + (data.message || 'Erreur'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur réseau', 'error');
+    }
+}
+
+/**
+ * Supprimer une table
+ */
+async function deleteTable(clientId, tableNumber) {
+    if (!confirm(`Supprimer la table ${tableNumber} ? Action irréversible.`)) return;
+
+    try {
+        const res = await fetch(`/admin/clients/${clientId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+            },
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            if (window.dashboardComponent) {
+                window.dashboardComponent.loadClients();
+            }
+        } else {
+            showToast('❌ ' + (data.message || 'Erreur'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur réseau', 'error');
     }
 }
 
@@ -1527,7 +1719,8 @@ async function unlinkClient(clientId) {
 
 // Fonction pour télécharger le rapport PDF
 async function downloadDateReport() {
-    const reportDate = document.getElementById('reportDate')?.value;
+    const reportDate = document.getElementById('reportDate')?.value 
+                    || document.getElementById('dateReportModal')?.getAttribute('data-report-date');
     const button = document.getElementById('downloadReportBtn');
     const originalText = button.innerHTML;
 
@@ -1612,6 +1805,11 @@ document.addEventListener('keydown', function(e) {
         closeOrderDetailsModal();
         closeAddClientModal();
         closeDateReportModal();
+        // Fermer les modales Alpine de gestion des tables
+        if (window.dashboardComponent) {
+            window.dashboardComponent.showAddTableModal = false;
+            window.dashboardComponent.showBulkModal = false;
+        }
     }
 });
 
@@ -1629,6 +1827,18 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         const orderId = e.target.getAttribute('data-order-id');
         previewReceipt(orderId);
+    }
+
+    // Boutons "Régénérer QR" / "Supprimer table" dans l'AJAX clients
+    if (e.target.classList.contains('regenerate-qr-btn')) {
+        e.preventDefault();
+        regenerateQr(e.target.getAttribute('data-client-id'));
+    }
+    if (e.target.classList.contains('delete-table-btn')) {
+        e.preventDefault();
+        const id = e.target.getAttribute('data-client-id');
+        const num = e.target.getAttribute('data-table-number');
+        deleteTable(id, num);
     }
 });
 
@@ -1701,6 +1911,18 @@ document.addEventListener('alpine:init', () => {
         reportsContent: '',
         loading: false,
         error: false,
+
+        // === NOUVELLES PROPRIÉTÉS : gestion des tables ===
+        showAddTableModal: false,
+        newTableNumber: '',
+        addTableError: '',
+        submittingTable: false,
+
+        showBulkModal: false,
+        bulkFrom: 1,
+        bulkTo: 10,
+        bulkError: '',
+        submittingBulk: false,
         
         init() {
             window.dashboardComponent = this;
@@ -1742,6 +1964,108 @@ document.addEventListener('alpine:init', () => {
                 this.error = true;
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // === NOUVELLES MÉTHODES : ajout/suppression de tables ===
+
+        async submitAddTable() {
+            this.addTableError = '';
+
+            const num = parseInt(this.newTableNumber);
+            if (!num || num < 1) {
+                this.addTableError = 'Numéro de table invalide.';
+                return;
+            }
+
+            this.submittingTable = true;
+            try {
+                const res = await fetch('{{ route('admin.clients.store') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ table_number: num }),
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    this.addTableError = data.errors?.table_number?.[0]
+                        || data.message
+                        || 'Erreur lors de la création.';
+                    return;
+                }
+
+                showToast('✅ ' + data.message, 'success');
+                this.showAddTableModal = false;
+                this.newTableNumber = '';
+
+                await this.loadClients();
+
+                // Proposer d'ouvrir la page QR codes
+                if (data.qr_url && confirm('Table créée. Voulez-vous ouvrir la page des QR codes pour imprimer ?')) {
+                    window.open('{{ route('admin.table.qrcodes') }}', '_blank');
+                }
+            } catch (err) {
+                console.error(err);
+                this.addTableError = 'Erreur réseau : ' + err.message;
+            } finally {
+                this.submittingTable = false;
+            }
+        },
+
+        async submitBulk() {
+            this.bulkError = '';
+
+            const from = parseInt(this.bulkFrom);
+            const to = parseInt(this.bulkTo);
+
+            if (!from || from < 1) {
+                this.bulkError = 'Numéro de départ invalide.';
+                return;
+            }
+            if (!to || to < from) {
+                this.bulkError = 'Le numéro de fin doit être ≥ au numéro de départ.';
+                return;
+            }
+            if (to - from > 100) {
+                this.bulkError = 'Maximum 100 tables à la fois.';
+                return;
+            }
+
+            this.submittingBulk = true;
+            try {
+                const res = await fetch('{{ route('admin.clients.bulk') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ from, to }),
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    this.bulkError = data.message || 'Erreur lors de la création.';
+                    return;
+                }
+
+                showToast('✅ ' + data.message, 'success');
+                this.showBulkModal = false;
+
+                await this.loadClients();
+
+                if (confirm('Tables créées. Voulez-vous ouvrir la page des QR codes pour imprimer ?')) {
+                    window.open('{{ route('admin.table.qrcodes') }}', '_blank');
+                }
+            } catch (err) {
+                console.error(err);
+                this.bulkError = 'Erreur réseau : ' + err.message;
+            } finally {
+                this.submittingBulk = false;
             }
         },
         

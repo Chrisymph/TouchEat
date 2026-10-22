@@ -11,93 +11,30 @@ use App\Models\User;
 class AuthController extends Controller
 {
 
-    // Afficher le formulaire d'authentification client
-    public function showClientAuth()
-    {
-        // Rediriger si déjà authentifié comme client
-        if (Auth::check() && Auth::user()->role === 'client') {
-            return redirect()->route('home');
-        }
-        
-        // Rediriger les admins vers l'interface admin
-        if (Auth::check() && Auth::user()->role === 'admin') {
-            return redirect()->route('admin.dashboard');
-        }
+public function loginViaQr(string $token)
+{
+    $user = User::where('qr_token', $token)
+                ->where('role', 'client')
+                ->first();
 
-        return view('auth.client-auth');
+    if (!$user) {
+        return redirect()->route('welcome')
+            ->with('error', 'QR code invalide ou expiré.');
     }
 
-    // Connexion client
-    public function clientLogin(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'tableNumber' => 'required|integer|min:1',
-            'password' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
-        }
-
-        $email = 'table' . $request->tableNumber . '@restaurant.com';
-        
-        $credentials = [
-            'email' => $email,
-            'password' => $request->password,
-            'role' => 'client'
-        ];
-
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
-            return redirect()->route('client.dashboard')->with('success', 'Connexion réussie!');
-        }
-
-        return back()->withErrors([
-            'tableNumber' => 'Numéro de table ou mot de passe incorrect',
-        ])->withInput();
+    // Déconnecte un éventuel utilisateur précédent (admin ou autre table)
+    if (Auth::check() && Auth::user()->id !== $user->id) {
+        Auth::logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
     }
 
-    // Inscription client
-    public function clientRegister(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'tableNumber' => 'required|integer|min:1',
-            'password' => 'required|string|min:6',
-        ]);
+    Auth::login($user);
+    request()->session()->regenerate();
 
-        if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
-        }
-
-        $email = 'table' . $request->tableNumber . '@restaurant.com';
-
-        // Vérifier si la table existe déjà
-        if (User::where('email', $email)->exists()) {
-            return back()->withErrors([
-                'tableNumber' => 'Cette table est déjà enregistrée',
-            ])->withInput();
-        }
-
-        // Vérifier si le numéro de table est déjà utilisé
-        if (User::where('table_number', $request->tableNumber)->exists()) {
-            return back()->withErrors([
-                'tableNumber' => 'Ce numéro de table est déjà attribué',
-            ])->withInput();
-        }
-
-        // Créer l'utilisateur client
-        $user = User::create([
-            'name' => 'Table ' . $request->tableNumber,
-            'email' => $email,
-            'password' => Hash::make($request->password),
-            'role' => 'client',
-            'table_number' => $request->tableNumber,
-        ]);
-
-        Auth::login($user);
-
-        return redirect()->route('client.dashboard')->with('success', 'Connexion réussie!');
-    }
+    return redirect()->route('client.dashboard')
+        ->with('success', 'Bienvenue à la table ' . $user->table_number);
+}
 
 
     // Afficher le formulaire d'authentification admin

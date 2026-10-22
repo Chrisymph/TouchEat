@@ -21,6 +21,7 @@ class User extends Authenticatable
         'table_number',
         'is_suspended',
         'suspended_until',
+        'qr_token',
     ];
 
     protected $hidden = [
@@ -92,4 +93,20 @@ class User extends Authenticatable
             'suspended_until' => null,
         ]);
     }
+
+    protected static function booted()
+{
+    static::creating(function ($user) {
+        if ($user->role === 'client' && empty($user->qr_token)) {
+            $user->qr_token = \Illuminate\Support\Str::random(48);
+        }
+    });
+}
+
+// Helper pratique
+public function getQrUrlAttribute(): ?string
+{
+    return $this->qr_token ? route('qr.login', $this->qr_token) : null;
+}
+
 }

@@ -12,10 +12,17 @@ Route::get('/', function () {
 
 Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
 
-// Routes d'authentification client
-Route::get('/client-auth', [AuthController::class, 'showClientAuth'])->name('client.auth');
-Route::post('/client-login', [AuthController::class, 'clientLogin'])->name('client.login');
-Route::post('/client-register', [AuthController::class, 'clientRegister'])->name('client.register');
+// Accès client via QR
+Route::get('/qr/{token}', [AuthController::class, 'loginViaQr'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('qr.login');
+
+// Anciennes routes : rediriger proprement (au cas où des liens traînent)
+Route::get('/client-auth', fn() => redirect()->route('welcome')
+    ->with('info', 'Veuillez scanner le QR code de votre table.'))
+    ->name('client.auth');
+Route::post('/client-login', fn() => redirect()->route('welcome'))->name('client.login');
+Route::post('/client-register', fn() => redirect()->route('welcome'))->name('client.register');
 
 // Routes d'authentification admin
 Route::get('/admin-auth', [AuthController::class, 'showAdminAuth'])->name('admin.auth');
@@ -25,6 +32,13 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Routes admin
 Route::middleware(['admin'])->prefix('admin')->group(function () {
+
+// CRÉATION / SUPPRESSION DE TABLES CLIENTS
+Route::post('/clients', [AdminController::class, 'storeClient'])->name('admin.clients.store');
+Route::delete('/clients/{clientId}', [AdminController::class, 'destroyClient'])->name('admin.clients.destroy');
+Route::post('/clients/{clientId}/regenerate-qr', [AdminController::class, 'regenerateQr'])->name('admin.clients.regenerate-qr');
+Route::post('/clients/bulk', [AdminController::class, 'bulkStoreClients'])->name('admin.clients.bulk');
+
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/orders', [AdminController::class, 'orders'])->name('admin.orders');
     Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax');
@@ -58,6 +72,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::delete('/clients/{clientId}/unlink', [AdminController::class, 'unlinkClient'])->name('admin.clients.unlink');
     Route::post('/clients/{clientId}/suspend', [AdminController::class, 'suspendClient'])->name('admin.clients.suspend');
     Route::post('/clients/{clientId}/activate', [AdminController::class, 'activateClient'])->name('admin.clients.activate');
+    Route::get('/table-qrcodes', [AdminController::class, 'tableQrCodes'])->name('admin.table.qrcodes');
     
     // Routes pour les rapports
     Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');

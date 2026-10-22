@@ -333,15 +333,15 @@
 
             <!-- Choix du type d'utilisateur pour les non connectés -->
             @guest
-            <div class="choice-buttons">
-                <button class="choice-button" onclick="window.location.href='{{ route('client.auth') }}'">
-                    🍽️ Je suis Client
-                </button>
-                <button class="choice-button" onclick="window.location.href='{{ route('admin.auth') }}'">
-                    👨‍💼 Je suis Admin
-                </button>
-            </div>
-            @endguest
+    <p class="subtitle" style="margin-top: 2rem; font-size: 1rem;">
+        📱 Scannez le QR code de votre table pour commander
+    </p>
+    <div class="choice-buttons">
+        <button class="choice-button" onclick="window.location.href='{{ route('admin.auth') }}'">
+            👨‍💼 Espace Administrateur
+        </button>
+    </div>
+@endguest
         </div>
 
         <script>

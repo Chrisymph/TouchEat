@@ -54,6 +54,109 @@ class AdminController extends Controller
         return view('admin.dashboard', compact('stats', 'recentOrders'));
     }
 
+    public function tableQrCodes()
+{
+    $tables = \App\Models\User::where('role', 'client')
+                ->orderBy('table_number')
+                ->get();
+
+    return view('admin.table-qrcodes', compact('tables'));
+}
+
+/**
+ * Créer une nouvelle table client
+ */
+public function storeClient(Request $request)
+{
+    $validated = $request->validate([
+        'table_number' => 'required|integer|min:1|unique:users,table_number',
+    ]);
+
+    $user = User::create([
+        'name'         => 'Table ' . $validated['table_number'],
+        'email'        => 'table' . $validated['table_number'] . '@restaurant.com',
+        'password'     => Hash::make(Str::random(32)), // inutile, mais la colonne est NOT NULL
+        'role'         => 'client',
+        'table_number' => $validated['table_number'],
+        // qr_token auto-généré via booted() dans le modèle User
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => "Table {$user->table_number} créée avec succès.",
+        'client'  => $user,
+        'qr_url'  => route('qr.login', ['token' => $user->qr_token]),
+    ]);
+}
+
+/**
+ * Supprimer une table client
+ */
+public function destroyClient($clientId)
+{
+    $client = User::where('id', $clientId)->where('role', 'client')->firstOrFail();
+    $client->delete();
+
+    return response()->json([
+        'success' => true,
+        'message' => "Table {$client->table_number} supprimée.",
+    ]);
+}
+
+/**
+ * Régénérer le QR token (si fuite ou perte)
+ */
+public function regenerateQr($clientId)
+{
+    $client = User::where('id', $clientId)->where('role', 'client')->firstOrFail();
+    $client->qr_token = Str::random(48);
+    $client->save();
+
+    return response()->json([
+        'success' => true,
+        'message' => "QR régénéré pour la table {$client->table_number}.",
+        'qr_url'  => route('qr.login', ['token' => $client->qr_token]),
+    ]);
+}
+
+/**
+ * Créer plusieurs tables d'un coup (ex: 1 à 20)
+ */
+public function bulkStoreClients(Request $request)
+{
+    $validated = $request->validate([
+        'from' => 'required|integer|min:1',
+        'to'   => 'required|integer|min:1|gte:from',
+    ]);
+
+    $created = [];
+    $skipped = [];
+
+    for ($n = $validated['from']; $n <= $validated['to']; $n++) {
+        if (User::where('table_number', $n)->exists()) {
+            $skipped[] = $n;
+            continue;
+        }
+
+        User::create([
+            'name'         => 'Table ' . $n,
+            'email'        => 'table' . $n . '@restaurant.com',
+            'password'     => Hash::make(Str::random(32)),
+            'role'         => 'client',
+            'table_number' => $n,
+        ]);
+        $created[] = $n;
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => count($created) . " table(s) créée(s). " .
+                     (count($skipped) ? count($skipped) . " déjà existante(s), ignorée(s)." : ''),
+        'created' => $created,
+        'skipped' => $skipped,
+    ]);
+}    
+
     /**
      * Gestion des commandes (version complète) - CORRIGÉ
      */

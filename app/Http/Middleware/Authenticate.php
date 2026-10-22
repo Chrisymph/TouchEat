@@ -14,17 +14,14 @@ class Authenticate extends Middleware
      * @return string|null
      */
     protected function redirectTo($request): ?string
-    {
-        if (!$request->expectsJson()) {
-            // Rediriger vers l'authentification admin si la route commence par /admin
-            if ($request->is('admin/*')) {
-                return route('admin.auth');
-            }
-            
-            // Rediriger vers l'authentification client pour les autres routes
-            return route('client.auth');
+{
+    if (!$request->expectsJson()) {
+        if ($request->is('admin/*')) {
+            return route('admin.auth');
         }
-        
-        return null;
+        // Client non authentifié → retour accueil (scan QR)
+        return route('welcome');
     }
+    return null;
+}
 }

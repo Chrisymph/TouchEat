@@ -10,9 +10,10 @@ class ClientMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
-        if (!Auth::check() || !Auth::user()->isClient()) {
-            return redirect('/client-auth')->with('error', 'Veuillez vous connecter en tant que client');
-        }
+       if (!Auth::check() || !Auth::user()->isClient()) {
+    return redirect()->route('welcome')
+        ->with('error', 'Veuillez scanner le QR code de votre table.');
+    }
 
         return $next($request);
     }
