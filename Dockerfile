@@ -38,4 +38,4 @@ ENV LOG_CHANNEL=stderr
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "frankenphp php-server --listen 0.0.0.0:${PORT:-10000} --root public/"]
+CMD ["sh", "-c", "exec /usr/local/bin/frankenphp php-server --listen 0.0.0.0:${PORT:-10000} --root /app/public"]
