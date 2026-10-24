@@ -1,5 +1,11 @@
 FROM dunglas/frankenphp:1-php8.3-bookworm
 
+RUN id && \
+    command -v frankenphp && \
+    ls -l "$(command -v frankenphp)" && \
+    ls -l /usr/local/bin/frankenphp
+    
+
 RUN install-php-extensions \
     pdo_mysql \
     mbstring \
