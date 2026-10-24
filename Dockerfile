@@ -15,6 +15,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
+COPY certs/isrgrootx1.pem /etc/ssl/certs/isrgrootx1.pem
+
 COPY . .
 
 RUN composer install \
