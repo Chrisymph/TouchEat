@@ -1,10 +1,11 @@
 FROM dunglas/frankenphp:1-php8.3-bookworm
 
-RUN id && \
-    command -v frankenphp && \
-    ls -l "$(command -v frankenphp)" && \
-    ls -l /usr/local/bin/frankenphp
-    
+RUN set -eux; \
+    id; \
+    command -v frankenphp; \
+    ls -l "$(command -v frankenphp)"; \
+    frankenphp version
+
 
 RUN install-php-extensions \
     pdo_mysql \
