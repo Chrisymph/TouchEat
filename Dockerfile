@@ -1,5 +1,4 @@
-
-FROM dunglas/frankenphp:1-php8.3-alpine
+FROM dunglas/frankenphp:1-php8.3-bookworm
 
 RUN install-php-extensions \
     pdo_mysql \
@@ -38,4 +37,4 @@ ENV LOG_CHANNEL=stderr
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "exec /usr/local/bin/frankenphp php-server --listen 0.0.0.0:${PORT:-10000} --root /app/public"]
+CMD ["sh", "-c", "exec frankenphp php-server --listen 0.0.0.0:${PORT:-10000} --root /app/public"]
