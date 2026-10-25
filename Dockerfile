@@ -44,4 +44,4 @@ ENV LOG_CHANNEL=stderr
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "exec frankenphp php-server --listen 0.0.0.0:${PORT:-10000} --root /app/public"]
+CMD ["frankenphp", "run", "--config", "/app/Caddyfile"]
