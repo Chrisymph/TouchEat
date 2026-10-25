@@ -692,7 +692,7 @@
 
                     console.log('POST /client/cart/add →', requestData);
 
-                    const response = await axios.post('{{ route("client.cart.add") }}', requestData);
+                    const response = await axios.post('{{ route("client.cart.add", [], false) }}', requestData);
 
                     if (response.data.success) {
                         this.cartCount = response.data.cart_count;
@@ -745,7 +745,7 @@
                         requestData.order_id = orderId;
                     }
 
-                    const response = await axios.post('{{ route("client.cart.update") }}', requestData);
+                    const response = await axios.post('{{ route("client.cart.update"), [], false)  }}', requestData);
 
                     if (response.data.success) {
                         this.cartCount = response.data.cart_count;
@@ -794,7 +794,7 @@
                 this.isProcessingPayment = true;
 
                 try {
-                    const response = await axios.post('{{ route("client.order.place") }}', {
+                    const response = await axios.post('{{ route("client.order.place"), [], false)  }}', {
                         order_type: 'sur_place',
                         phone_number: this.phoneNumber,
                         network: this.selectedNetwork,
@@ -911,7 +911,7 @@
                         requestData.order_id = this.currentOrderId;
                     }
 
-                    const response = await axios.post('{{ route("client.cart.clear") }}', requestData);
+                    const response = await axios.post('{{ route("client.cart.clear"), [], false)  }}', requestData);
 
                     if (response.data.success) {
                         this.cartCount = response.data.cart_count;
