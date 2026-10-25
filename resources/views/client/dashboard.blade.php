@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- ✅ CSRF token pour axios -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     <title>Interface Client - Table {{ $tableNumber }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
@@ -47,7 +51,7 @@
                 <template x-if="currentView !== 'home'">
                     <div class="flex-1"></div>
                 </template>
-                <form action="{{ route('logout') }}" method="POST">
+                <form action="{{ route('client.logout') }}" method="POST">
                     @csrf
                     <button type="submit" 
                     class="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg font-semibold transition-colors backdrop-blur-sm">
@@ -645,8 +649,17 @@
             currentOrderId: @json($existingOrderId),
 
             init() {
+                // ✅ CONFIGURATION AXIOS : CSRF + cookies + JSON
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                if (csrfMeta) {
+                    axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfMeta.getAttribute('content');
+                }
+                axios.defaults.withCredentials = true;
+                axios.defaults.headers.common['Accept'] = 'application/json';
+                axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+
                 this.calculateCartTotal();
-                console.log('Initialisation - Ajout à commande existante:', this.isAddingToExistingOrder, 'ID:', this.currentOrderId);
+                console.log('Init - Ajout à commande existante:', this.isAddingToExistingOrder, 'ID:', this.currentOrderId);
             },
 
             get filteredMenu() {
@@ -676,7 +689,7 @@
                         requestData.order_id = this.currentOrderId;
                     }
 
-                    console.log('Ajout au panier:', requestData);
+                    console.log('POST /client/cart/add →', requestData);
 
                     const response = await axios.post('{{ route("client.cart.add") }}', requestData);
 
@@ -684,21 +697,38 @@
                         this.cartCount = response.data.cart_count;
                         this.cartItems = response.data.cart_items || [];
                         this.calculateCartTotal();
-                        
+
                         this.showToast(response.data.message || 'Article ajouté au panier!');
                     } else {
                         this.showToast(response.data.message || 'Erreur lors de l\'ajout au panier', 'error');
                     }
                 } catch (error) {
-                    console.error('Erreur lors de l\'ajout au panier:', error);
+                    console.error('❌ Erreur addToCart:', error);
+
                     let errorMessage = 'Erreur lors de l\'ajout au panier';
-                    
-                    if (error.response && error.response.data && error.response.data.message) {
-                        errorMessage = error.response.data.message;
-                    } else if (error.response && error.response.data && error.response.data.error) {
-                        errorMessage = error.response.data.error;
+
+                    if (error.response) {
+                        const data = error.response.data;
+                        const status = error.response.status;
+
+                        if (data && data.errors) {
+                            // Erreurs de validation Laravel
+                            errorMessage = Object.values(data.errors).flat().join(' ');
+                        } else if (data && data.message) {
+                            errorMessage = data.message;
+                        } else if (data && data.error) {
+                            errorMessage = data.error;
+                        } else if (status === 419) {
+                            errorMessage = 'Session expirée. Rechargez la page.';
+                        } else if (status === 401 || status === 403) {
+                            errorMessage = 'Authentification requise. Scannez à nouveau le QR code.';
+                        } else if (status >= 500) {
+                            errorMessage = 'Erreur serveur. Réessayez plus tard.';
+                        }
+                    } else if (error.message) {
+                        errorMessage = 'Erreur réseau : ' + error.message;
                     }
-                    
+
                     this.showToast(errorMessage, 'error');
                 }
             },
@@ -720,16 +750,31 @@
                         this.cartCount = response.data.cart_count;
                         this.cartItems = response.data.cart_items || [];
                         this.cartTotal = response.data.cart_total || 0;
-                        
+
                         if (newQuantity === 0) {
                             this.showToast('Article supprimé du panier');
                         } else {
                             this.showToast('Quantité mise à jour');
                         }
+                    } else {
+                        this.showToast(response.data.message || 'Erreur lors de la mise à jour', 'error');
                     }
                 } catch (error) {
-                    console.error('Erreur lors de la mise à jour du panier:', error);
-                    this.showToast('Erreur lors de la mise à jour', 'error');
+                    console.error('❌ Erreur updateQuantity:', error);
+
+                    let errorMessage = 'Erreur lors de la mise à jour';
+                    if (error.response) {
+                        const data = error.response.data;
+                        if (data && data.errors) {
+                            errorMessage = Object.values(data.errors).flat().join(' ');
+                        } else if (data && data.message) {
+                            errorMessage = data.message;
+                        } else if (error.response.status === 419) {
+                            errorMessage = 'Session expirée. Rechargez la page.';
+                        }
+                    }
+
+                    this.showToast(errorMessage, 'error');
                 }
             },
 
@@ -879,18 +924,6 @@
                 }
             },
 
-            // showToast(message, type = 'success') {
-            //     const toast = document.createElement('div');
-            //     toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 ${
-            //         type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            //     }`;
-            //     toast.textContent = message;
-            //     document.body.appendChild(toast);
-
-            //     setTimeout(() => {
-            //         toast.remove();
-            //     }, 3000);
-            // }
             showToast(message, type = 'success') {
                 const container = document.getElementById('toast-container');
 

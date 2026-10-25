@@ -119,12 +119,21 @@ public function loginViaQr(string $token)
     }
 
     // Déconnexion
-    public function logout(Request $request)
-    {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+public function logout(Request $request)
+{
+    // ⚡ IMPORTANT : capturer le rôle AVANT de déconnecter
+    $role = Auth::check() ? Auth::user()->role : null;
 
-        return redirect('/');
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    // 🎯 Client → page de remerciements
+    if ($role === 'client') {
+        return redirect()->route('thank.you');
     }
+
+    // Admin ou autre → accueil
+    return redirect('/');
+}
 }

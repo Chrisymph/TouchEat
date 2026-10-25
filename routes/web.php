@@ -7,10 +7,22 @@ use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    // Un client connecté ne doit pas revenir sur la page d'accueil
+    if (Auth::check()) {
+        if (Auth::user()->role === 'client') {
+            return redirect()->route('client.dashboard');
+        }
+        if (Auth::user()->role === 'admin') {
+            return redirect()->route('admin.dashboard');
+        }
+    }
     return view('welcome');
-})->name('welcome'); // J'ai ajouté le nom 'welcome' à cette route
+})->name('welcome');
 
-Route::get('/home', [HomeController::class, 'index'])->name('home')->middleware('auth');
+// Route de remerciements après déconnexion client
+Route::get('/thank-you', function () {
+    return view('thank-you');
+})->name('thank.you');
 
 // Accès client via QR
 Route::get('/qr/{token}', [AuthController::class, 'loginViaQr'])
@@ -92,8 +104,8 @@ Route::post('/clients/bulk', [AdminController::class, 'bulkStoreClients'])->name
 // Routes client
 Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
-    Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
-    Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
+    //Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
+    //Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
     Route::post('/order/place', [ClientController::class, 'placeOrder'])->name('client.order.place');
     Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
     Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
