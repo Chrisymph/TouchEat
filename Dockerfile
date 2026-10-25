@@ -1,10 +1,11 @@
-FROM dunglas/frankenphp:1-php8.3-bookworm
+FROM php:8.3-apache-bookworm
 
 RUN set -eux; \
     id; \
     command -v frankenphp; \
     ls -l "$(command -v frankenphp)"; \
-    frankenphp version
+    frankenphp version; \
+    echo "DIAGNOSTIC_FRANKENPHP_OK"
 
 
 RUN install-php-extensions \
