@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gd \
         opcache \
     && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
 
 
 # Installer Composer
