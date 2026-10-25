@@ -15,11 +15,13 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    // ✅ Inclure les routes de votre application et Sanctum
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'client/*', 'login', 'logout'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    // ✅ Spécifier l'origine exacte de votre site (pas de wildcard '*')
+    'allowed_origins' => [env('APP_URL', 'https://toucheat.onrender.com')],
 
     'allowed_origins_patterns' => [],
 
@@ -29,6 +31,7 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    // ✅ Indispensable pour que les cookies de session soient envoyés
+    'supports_credentials' => true,
 
 ];
