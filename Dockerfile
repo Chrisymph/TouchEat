@@ -3,6 +3,7 @@ FROM php:8.3-apache-bookworm
 
 # Installer les dépendances système nécessaires aux extensions PHP
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     libicu-dev \
     libzip-dev \
     libpng-dev \
@@ -19,8 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         zip \
         gd \
         opcache \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-    ca-certificates \
 
 
 # Installer Composer
