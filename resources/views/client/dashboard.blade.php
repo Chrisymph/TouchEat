@@ -655,6 +655,7 @@
                     axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfMeta.getAttribute('content');
                 }
                 axios.defaults.withCredentials = true;
+                axios.defaults.withXSRFToken = true; // Ajoutez cette ligne
                 axios.defaults.headers.common['Accept'] = 'application/json';
                 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
