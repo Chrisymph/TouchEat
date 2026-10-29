@@ -11,8 +11,7 @@ class VerifyCsrfToken extends Middleware
      *
      * @var array<int, string>
      */
-protected $except = [
-    'client/sms-webhook',
-    'client/sms-webhook/*'
-];
+    protected $except = [
+        'webhooks/kkiapay',
+    ];
 }

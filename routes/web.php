@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\KkiapayController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -110,16 +111,10 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
     Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
     Route::post('/order/{orderId}/add-item', [ClientController::class, 'addToExistingOrder'])->name('client.order.add-item');
+    Route::get('/order/{order}/kkiapay/{payment}', [KkiapayController::class, 'show'])->name('client.kkiapay.show');
+    Route::post('/order/{order}/kkiapay/{payment}/verify', [KkiapayController::class, 'verify'])->name('client.kkiapay.verify');
     
-    // Routes pour le paiement USSD - NOUVELLES ROUTES AVEC PAYMENT ID OPTIONNEL
-    Route::get('/order/{order}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd');
-    Route::get('/order/{order}/{payment}/ussd', [ClientController::class, 'showUssdCommand'])->name('client.order.ussd.payment');
-    
-    // Routes pour le paiement avec vérification SMS - NOUVELLES ROUTES AVEC PAYMENT ID OPTIONNEL
-    Route::get('/order/{order}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form');
-    Route::get('/order/{order}/{payment}/transaction', [ClientController::class, 'showTransactionForm'])->name('client.payment.form.payment');
-    Route::post('/order/{order}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process');
-    Route::post('/order/{order}/{payment}/process-payment', [ClientController::class, 'processTransaction'])->name('client.payment.process.payment');
+    ;
     
     Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
@@ -139,3 +134,5 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
 Route::post('/client/sync-pcsync', [ClientController::class, 'syncWithPCSync']);
 Route::post('/client/sms-webhook', [ClientController::class, 'receiveSMSWebhook']);
 Route::post('/client/sync-mobiletrans', [ClientController::class, 'syncWithMobileTransFiles']);
+
+Route::post('/webhooks/kkiapay', [KkiapayController::class, 'webhook'])->name('kkiapay.webhook');
