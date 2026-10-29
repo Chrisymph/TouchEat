@@ -60,7 +60,6 @@
                 </div>
                 <div class="mt-2">
                     <p class="text-2xl font-bold text-orange-600">{{ $stats['todayOrders'] }}</p>
-                    <p class="text-xs text-gray-500">+2 depuis hier</p>
                 </div>                
             </div>
 
@@ -71,7 +70,6 @@
                 </div>
                 <div class="mt-2">
                     <p class="text-2xl font-bold text-yellow-500">{{ $stats['pendingOrders'] }}</p>
-                    <p class="text-xs text-gray-500">À traiter</p>
                 </div>
             </div>
 
@@ -82,7 +80,6 @@
                 </div>  
                 <div class="mt-2">                        
                     <p class="text-2xl font-bold text-green-600">{{ number_format($stats['todayRevenue'], 0, ',', ' ') }} FCFA</p>
-                    <p class="text-xs text-gray-500">+12% depuis hier</p>
                 </div>
             </div>
 
@@ -93,7 +90,6 @@
                 </div>
                 <div class="mt-2">                 
                     <p class="text-2xl font-bold text-yellow-600">{{ $stats['activeTables'] }}/12</p>
-                    <p class="text-xs text-gray-500">Tables occupées</p>
                 </div>
             </div>
         </div>
