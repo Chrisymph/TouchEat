@@ -219,6 +219,17 @@
             animation-delay: 3.5s;
         }
 
+        .logo-image {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    mix-blend-mode: multiply;
+}
+
         /* Choix utilisateur */
         .choice-buttons {
             display: none;
