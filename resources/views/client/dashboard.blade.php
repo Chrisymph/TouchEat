@@ -641,6 +641,8 @@
             deliveryNotes: '',
             selectedNetwork: 'mtn',
             isProcessingPayment: false,
+            pendingSync: 0,
+            syncChain: Promise.resolve(),
             hasActiveOrder: @json($currentOrder !== null),
             currentOrder: @json($currentOrder),
 
@@ -675,108 +677,136 @@
             },
 
             calculateCartTotal() {
-                this.cartTotal = this.cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+                this.cartTotal = this.cartItems.reduce((t, i) => t + (i.price * i.quantity), 0);
+                this.cartCount = this.cartItems.reduce((t, i) => t + i.quantity, 0);
             },
 
-            async addToCart(item) {
-                try {
-                    const requestData = {
-                        menu_item_id: item.id,
-                        quantity: 1
-                    };
-
-                    // Ajouter l'ID de commande si on ajoute à une commande existante
-                    if (this.isAddingToExistingOrder && this.currentOrderId) {
-                        requestData.order_id = this.currentOrderId;
+                        enqueueSync(task) {
+                this.pendingSync++;
+                this.syncChain = this.syncChain
+                    .then(task)
+                    .catch(() => {})
+                    .finally(() => { this.pendingSync--; });
+            },
+ 
+            extractError(error, fallback) {
+                if (error.response) {
+                    const data = error.response.data;
+                    const status = error.response.status;
+ 
+                    if (data && data.errors) return Object.values(data.errors).flat().join(' ');
+                    if (data && data.message) return data.message;
+                    if (data && data.error) return data.error;
+                    if (status === 419) return 'Session expirée. Rechargez la page.';
+                    if (status === 401 || status === 403) return 'Authentification requise. Scannez à nouveau le QR code.';
+                    if (status >= 500) return 'Erreur serveur. Réessayez plus tard.';
+                }
+                return fallback;
+            },
+ 
+            revertAdd(cartKey) {
+                const idx = this.cartItems.findIndex(i => i.cart_key === cartKey);
+                if (idx !== -1) {
+                    if (this.cartItems[idx].quantity > 1) {
+                        this.cartItems[idx].quantity -= 1;
+                    } else {
+                        this.cartItems.splice(idx, 1);
                     }
+                }
+                this.calculateCartTotal();
+            },
 
-                    console.log('POST /client/cart/add →', requestData);
-
-                    const response = await axios.post('{{ route("client.cart.add") }}', requestData);
-
-                    if (response.data.success) {
-                        this.cartCount = response.data.cart_count;
-                        this.cartItems = response.data.cart_items || [];
+            addToCart(item) {
+                const orderId = (this.isAddingToExistingOrder && this.currentOrderId) ? this.currentOrderId : null;
+                const cartKey = item.id + (orderId ? '_' + orderId : '');
+ 
+                // 1) Interface mise à jour tout de suite
+                const existing = this.cartItems.find(i => i.cart_key === cartKey);
+                if (existing) {
+                    existing.quantity += 1;
+                } else {
+                    this.cartItems.push({
+                        id: item.id,
+                        name: item.name,
+                        description: item.description,
+                        price: item.price,
+                        quantity: 1,
+                        category: item.category,
+                        promotion_discount: item.promotion_discount,
+                        original_price: item.original_price,
+                        image_url: item.image_url,
+                        order_id: orderId,
+                        cart_key: cartKey
+                    });
+                }
+                this.calculateCartTotal();
+                this.showToast('Article ajouté au panier!');
+ 
+                // 2) Synchronisation avec le serveur en arrière-plan
+                this.enqueueSync(async () => {
+                    try {
+                        const payload = { menu_item_id: item.id, quantity: 1 };
+                        if (orderId) payload.order_id = orderId;
+ 
+                        const response = await axios.post('{{ route("client.cart.add") }}', payload);
+ 
+                        if (!response.data.success) {
+                            throw new Error(response.data.message || 'Erreur lors de l\'ajout au panier');
+                        }
+ 
+                        // Dernière requête de la file : on aligne l'écran sur le serveur
+                        if (this.pendingSync <= 1) {
+                            this.cartItems = response.data.cart_items || [];
+                            this.calculateCartTotal();
+                        }
+                    } catch (error) {
+                        console.error('❌ Erreur addToCart:', error);
+                        this.revertAdd(cartKey);
+                        this.showToast(this.extractError(error, error.message || 'Erreur lors de l\'ajout au panier'), 'error');
+                    }
+                });
+            },
+ 
+            updateQuantity(itemId, newQuantity, orderId = null) {
+                const cartKey = itemId + (orderId ? '_' + orderId : '');
+                const idx = this.cartItems.findIndex(i => i.cart_key === cartKey);
+                if (idx === -1) return;
+ 
+                // Sauvegarde pour pouvoir annuler en cas d'erreur
+                const snapshot = this.cartItems.map(i => ({ ...i }));
+ 
+                // 1) Interface mise à jour tout de suite
+                if (newQuantity <= 0) {
+                    this.cartItems.splice(idx, 1);
+                } else {
+                    this.cartItems[idx].quantity = newQuantity;
+                }
+                this.calculateCartTotal();
+                this.showToast(newQuantity <= 0 ? 'Article supprimé du panier' : 'Quantité mise à jour');
+ 
+                // 2) Synchronisation avec le serveur en arrière-plan
+                this.enqueueSync(async () => {
+                    try {
+                        const payload = { menu_item_id: itemId, quantity: Math.max(0, newQuantity) };
+                        if (orderId) payload.order_id = orderId;
+ 
+                        const response = await axios.post('{{ route("client.cart.update") }}', payload);
+ 
+                        if (!response.data.success) {
+                            throw new Error(response.data.message || 'Erreur lors de la mise à jour');
+                        }
+ 
+                        if (this.pendingSync <= 1) {
+                            this.cartItems = response.data.cart_items || [];
+                            this.calculateCartTotal();
+                        }
+                    } catch (error) {
+                        console.error('❌ Erreur updateQuantity:', error);
+                        this.cartItems = snapshot;
                         this.calculateCartTotal();
-
-                        this.showToast(response.data.message || 'Article ajouté au panier!');
-                    } else {
-                        this.showToast(response.data.message || 'Erreur lors de l\'ajout au panier', 'error');
+                        this.showToast(this.extractError(error, error.message || 'Erreur lors de la mise à jour'), 'error');
                     }
-                } catch (error) {
-                    console.error('❌ Erreur addToCart:', error);
-
-                    let errorMessage = 'Erreur lors de l\'ajout au panier';
-
-                    if (error.response) {
-                        const data = error.response.data;
-                        const status = error.response.status;
-
-                        if (data && data.errors) {
-                            // Erreurs de validation Laravel
-                            errorMessage = Object.values(data.errors).flat().join(' ');
-                        } else if (data && data.message) {
-                            errorMessage = data.message;
-                        } else if (data && data.error) {
-                            errorMessage = data.error;
-                        } else if (status === 419) {
-                            errorMessage = 'Session expirée. Rechargez la page.';
-                        } else if (status === 401 || status === 403) {
-                            errorMessage = 'Authentification requise. Scannez à nouveau le QR code.';
-                        } else if (status >= 500) {
-                            errorMessage = 'Erreur serveur. Réessayez plus tard.';
-                        }
-                    } else if (error.message) {
-                        errorMessage = 'Erreur réseau : ' + error.message;
-                    }
-
-                    this.showToast(errorMessage, 'error');
-                }
-            },
-
-            async updateQuantity(itemId, newQuantity, orderId = null) {
-                try {
-                    const requestData = {
-                        menu_item_id: itemId,
-                        quantity: newQuantity
-                    };
-
-                    if (orderId) {
-                        requestData.order_id = orderId;
-                    }
-
-                    const response = await axios.post('{{ route("client.cart.update") }}', requestData);
-
-                    if (response.data.success) {
-                        this.cartCount = response.data.cart_count;
-                        this.cartItems = response.data.cart_items || [];
-                        this.cartTotal = response.data.cart_total || 0;
-
-                        if (newQuantity === 0) {
-                            this.showToast('Article supprimé du panier');
-                        } else {
-                            this.showToast('Quantité mise à jour');
-                        }
-                    } else {
-                        this.showToast(response.data.message || 'Erreur lors de la mise à jour', 'error');
-                    }
-                } catch (error) {
-                    console.error('❌ Erreur updateQuantity:', error);
-
-                    let errorMessage = 'Erreur lors de la mise à jour';
-                    if (error.response) {
-                        const data = error.response.data;
-                        if (data && data.errors) {
-                            errorMessage = Object.values(data.errors).flat().join(' ');
-                        } else if (data && data.message) {
-                            errorMessage = data.message;
-                        } else if (error.response.status === 419) {
-                            errorMessage = 'Session expirée. Rechargez la page.';
-                        }
-                    }
-
-                    this.showToast(errorMessage, 'error');
-                }
+                });
             },
 
             // Fonction pour ajouter à une commande existante

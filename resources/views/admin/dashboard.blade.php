@@ -492,11 +492,11 @@
 
 <!-- Modaux globaux pour le menu -->
 <div id="globalAddModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div class="p-6">
             <h3 class="text-lg font-semibold mb-4" id="globalModalTitle">Ajouter un nouvel article</h3>
             
-            <form id="globalMenuForm" method="POST">
+            <form id="globalMenuForm" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div id="globalMethodField"></div>
                 
@@ -530,6 +530,24 @@
                                 <option value="repas">🍽️ Repas</option>
                                 <option value="boisson">🥤 Boisson</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- PHOTO DE L'ARTICLE -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Photo de l'article (optionnel)</label>
+                        <input type="file" name="image" id="globalItemImage" accept="image/png,image/jpeg,image/webp"
+                               class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-orange-100 file:text-orange-700 hover:file:bg-orange-200">
+
+                        <div id="globalImagePreviewWrap" style="display:none" class="mt-2">
+                            <img id="globalImagePreview" src="" alt="Aperçu"
+                                 class="w-full h-40 object-cover rounded-md border border-gray-200">
+                            <label id="globalRemoveImageWrap" style="display:none"
+                                   class="mt-2 items-center space-x-2 text-sm text-red-600 cursor-pointer">
+                                <input type="checkbox" name="remove_image" id="globalRemoveImage" value="1"
+                                       class="rounded border-gray-300">
+                                <span>Supprimer la photo actuelle</span>
+                            </label>
                         </div>
                     </div>
                     
@@ -1137,9 +1155,87 @@ function closeOrderDetailsModal() {
     document.getElementById('orderDetailsModal').style.display = 'none';
 }
 
+// ============================================================================
+// IMAGE DES ARTICLES
+// ============================================================================
+
+function globalResetImageField() {
+    document.getElementById('globalItemImage').value = '';
+    document.getElementById('globalImagePreview').src = '';
+    document.getElementById('globalImagePreviewWrap').style.display = 'none';
+    document.getElementById('globalRemoveImageWrap').style.display = 'none';
+    document.getElementById('globalRemoveImage').checked = false;
+}
+
+function globalShowExistingImage(url) {
+    if (!url) return;
+    document.getElementById('globalImagePreview').src = url;
+    document.getElementById('globalImagePreviewWrap').style.display = 'block';
+    document.getElementById('globalRemoveImageWrap').style.display = 'flex';
+}
+
+// Réduit la photo (max 1000 px) avant l'envoi : upload plus rapide
+// et pas de problème avec la limite de taille du serveur.
+function compressImageFile(file, maxSide = 1000, quality = 0.82) {
+    return new Promise((resolve) => {
+        if (!file.type.startsWith('image/')) return resolve(file);
+
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const ratio = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * ratio);
+            canvas.height = Math.round(img.height * ratio);
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob((blob) => {
+                if (!blob || blob.size >= file.size) return resolve(file);
+                resolve(new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }));
+            }, 'image/jpeg', quality);
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(file);
+        };
+
+        img.src = url;
+    });
+}
+
+document.getElementById('globalItemImage')?.addEventListener('change', async function () {
+    const file = this.files[0];
+
+    if (!file) {
+        globalResetImageField();
+        return;
+    }
+
+    const compressed = await compressImageFile(file);
+
+    if (compressed !== file && window.DataTransfer) {
+        const dt = new DataTransfer();
+        dt.items.add(compressed);
+        this.files = dt.files;
+    }
+
+    document.getElementById('globalImagePreview').src = URL.createObjectURL(compressed);
+    document.getElementById('globalImagePreviewWrap').style.display = 'block';
+    document.getElementById('globalRemoveImageWrap').style.display = 'none';
+    document.getElementById('globalRemoveImage').checked = false;
+});
+
 // Fonctions globales pour les modaux
 function globalOpenAddModal() {
     document.getElementById('globalMenuForm').reset();
+    globalResetImageField();
     document.getElementById('globalModalTitle').textContent = 'Ajouter un nouvel article';
     document.getElementById('globalSubmitText').textContent = 'Ajouter l\'article';
     document.getElementById('globalMethodField').innerHTML = '';
@@ -1149,6 +1245,7 @@ function globalOpenAddModal() {
 
 function globalOpenAddModalWithCategory(category) {
     document.getElementById('globalMenuForm').reset();
+    globalResetImageField();
     document.getElementById('globalModalTitle').textContent = 'Ajouter un nouvel article';
     document.getElementById('globalSubmitText').textContent = 'Ajouter l\'article';
     document.getElementById('globalMethodField').innerHTML = '';
@@ -1167,68 +1264,55 @@ function globalCloseModal() {
 // Gestion de la soumission du formulaire global
 document.getElementById('globalMenuForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    
+
     const formData = new FormData(this);
     const submitButton = document.getElementById('globalSubmitButton');
     const originalText = submitButton.innerHTML;
-    
-    // Afficher un indicateur de chargement
+
     submitButton.innerHTML = '⏳ Enregistrement...';
     submitButton.disabled = true;
-    
+
     try {
-        console.log('Envoi des données vers:', this.action);
-        
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
                          document.querySelector('input[name="_token"]')?.value;
-        
+
         if (!csrfToken) {
             throw new Error('Token CSRF non trouvé');
         }
-        
+
         const response = await fetch(this.action, {
             method: 'POST',
             body: formData,
             headers: {
+                'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': csrfToken
             }
         });
 
-        console.log('Réponse reçue:', response.status);
-        
-        if (!response.ok) {
+        let result;
+        try {
+            result = await response.json();
+        } catch (parseError) {
             throw new Error(`Erreur HTTP: ${response.status}`);
         }
 
-        const result = await response.json();
-        console.log('Résultat:', result);
-        
         if (result.success) {
-            // Succès
             globalCloseModal();
-            
-            // Afficher message de succès
             showToast('✅ ' + result.message, 'success');
-            
-            // Recharger le contenu du menu avec la même catégorie
-            setTimeout(() => {
-                if (window.dashboardComponent) {
-                    const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
-                    window.dashboardComponent.loadMenu(savedCategory);
-                }
-            }, 1000);
-            
+
+            if (window.dashboardComponent) {
+                const savedCategory = localStorage.getItem('adminMenuCategory') || 'repas';
+                window.dashboardComponent.loadMenu(savedCategory);
+            }
         } else {
-            // Erreur
-            showToast('❌ ' + result.message, 'error');
+            showToast('❌ ' + (result.message || 'Erreur lors de la sauvegarde'), 'error');
         }
-        
+
     } catch (error) {
         console.error('Erreur réseau:', error);
-        showToast('❌ Erreur réseau lors de la sauvegarde: ' + error.message, 'error');
+        showToast('❌ Erreur lors de la sauvegarde: ' + error.message, 'error');
     } finally {
-        // Restaurer le bouton
         submitButton.innerHTML = originalText;
         submitButton.disabled = false;
     }
@@ -1337,6 +1421,10 @@ async function globalOpenEditModal(itemId) {
         document.getElementById('globalItemPrice').value = item.price || '';
         document.getElementById('globalItemCategory').value = item.category || 'repas';
         document.getElementById('globalItemAvailable').checked = item.available !== false;
+
+        // Photo actuelle de l'article
+        globalResetImageField();
+        globalShowExistingImage(item.image_url);
         
         document.getElementById('globalAddModal').style.display = 'flex';
         

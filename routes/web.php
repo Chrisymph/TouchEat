@@ -5,6 +5,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KkiapayController;
+use App\Http\Controllers\MenuImageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -114,13 +115,8 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/order/{order}/kkiapay/{payment}', [KkiapayController::class, 'show'])->name('client.kkiapay.show');
     Route::post('/order/{order}/kkiapay/{payment}/verify', [KkiapayController::class, 'verify'])->name('client.kkiapay.verify');
     
-    ;
-    
     Route::post('/order/{orderId}/request-delivery', [ClientController::class, 'requestDelivery'])->name('client.order.request-delivery');
     Route::get('/order-history', [ClientController::class, 'orderHistory'])->name('client.order.history');
-
-    // Routes pour la synchronisation SMS
-    Route::post('/force-sync-sms', [ClientController::class, 'forceSyncSMS'])->name('client.sms.force-sync');
 
     // Routes pour le panier
     Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
@@ -130,9 +126,5 @@ Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('client.logout');
 });
 
-// Routes SMS (accessibles sans auth pour PC Sync)
-Route::post('/client/sync-pcsync', [ClientController::class, 'syncWithPCSync']);
-Route::post('/client/sms-webhook', [ClientController::class, 'receiveSMSWebhook']);
-Route::post('/client/sync-mobiletrans', [ClientController::class, 'syncWithMobileTransFiles']);
-
 Route::post('/webhooks/kkiapay', [KkiapayController::class, 'webhook'])->name('kkiapay.webhook');
+Route::get('/menu-image/{id}', [MenuImageController::class, 'show'])->whereNumber('id')->name('menu.image');

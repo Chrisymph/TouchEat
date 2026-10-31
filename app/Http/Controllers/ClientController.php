@@ -54,43 +54,43 @@ class ClientController extends Controller
         $user = Auth::user();
         if ($user->isSuspended()) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas passer de commande.'
             ], 403);
         }
-
+ 
         $request->validate([
-            'menu_item_id' => 'required|exists:menu_items,id',
+            'menu_item_id' => 'required|integer',
             'quantity' => 'required|integer|min:1',
-            'order_id' => 'nullable|exists:orders,id'
+            'order_id' => 'nullable|integer'
         ]);
-
+ 
         // Vérifier que la commande existe et appartient à l'utilisateur
         if ($request->order_id) {
-            $order = Order::where('id', $request->order_id)
-                ->where('table_number', Auth::user()->table_number)
-                ->first();
-            
-            if (!$order) {
+            $orderExists = Order::where('id', $request->order_id)
+                ->where('table_number', $user->table_number)
+                ->exists();
+ 
+            if (!$orderExists) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Commande non trouvée ou non autorisée.'
                 ], 404);
             }
         }
-
-        $cart = session()->get('cart', []);
+ 
         $menuItem = MenuItem::find($request->menu_item_id);
-
+ 
         if (!$menuItem || !$menuItem->available) {
             return response()->json([
                 'success' => false,
                 'message' => 'Article non disponible.'
             ], 404);
         }
-
+ 
+        $cart = session()->get('cart', []);
         $cartKey = $request->menu_item_id . ($request->order_id ? '_' . $request->order_id : '');
-
+ 
         if (isset($cart[$cartKey])) {
             $cart[$cartKey]['quantity'] += $request->quantity;
         } else {
@@ -103,15 +103,16 @@ class ClientController extends Controller
                 'category' => $menuItem->category,
                 'promotion_discount' => $menuItem->promotion_discount,
                 'original_price' => $menuItem->original_price,
+                'image_url' => $menuItem->image_url,
                 'order_id' => $request->order_id,
                 'cart_key' => $cartKey
             ];
         }
-
+ 
         session()->put('cart', $cart);
-
+ 
         $cartCount = array_sum(array_column($cart, 'quantity'));
-
+ 
         return response()->json([
             'success' => true,
             'cart_count' => $cartCount,
@@ -120,26 +121,26 @@ class ClientController extends Controller
             'message' => 'Article ajouté au panier avec succès!'
         ]);
     }
-
+ 
     public function updateCart(Request $request)
     {
         $user = Auth::user();
         if ($user->isSuspended()) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas modifier votre panier.'
             ], 403);
         }
-
+ 
         $request->validate([
-            'menu_item_id' => 'required|exists:menu_items,id',
+            'menu_item_id' => 'required|integer',
             'quantity' => 'required|integer|min:0',
-            'order_id' => 'nullable|exists:orders,id'
+            'order_id' => 'nullable|integer'
         ]);
-
+ 
         $cart = session()->get('cart', []);
         $cartKey = $request->menu_item_id . ($request->order_id ? '_' . $request->order_id : '');
-
+ 
         if ($request->quantity == 0) {
             unset($cart[$cartKey]);
         } else {
@@ -147,15 +148,15 @@ class ClientController extends Controller
                 $cart[$cartKey]['quantity'] = $request->quantity;
             }
         }
-
+ 
         session()->put('cart', $cart);
-
+ 
         $cartCount = array_sum(array_column($cart, 'quantity'));
         $cartTotal = 0;
         foreach ($cart as $item) {
             $cartTotal += $item['price'] * $item['quantity'];
         }
-
+ 
         return response()->json([
             'success' => true,
             'cart_count' => $cartCount,

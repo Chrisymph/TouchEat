@@ -11,6 +11,10 @@ use App\Models\MenuItem;
 use App\Models\Report;
 use App\Models\OrderItem;
 use App\Models\User;
+use App\Services\MenuImageService;
+use App\Models\MenuItemImage;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
@@ -462,23 +466,24 @@ public function bulkStoreClients(Request $request)
         return view('admin.menu-content', compact('menuItems', 'category', 'categories'));
     }
 
-    /**
+  /**
      * Récupérer un article du menu via AJAX
      */
     public function getMenuItem($id)
     {
         try {
             $menuItem = MenuItem::findOrFail($id);
-            
+ 
             return response()->json([
                 'id' => $menuItem->id,
                 'name' => $menuItem->name,
                 'price' => $menuItem->price,
                 'description' => $menuItem->description,
                 'category' => $menuItem->category,
-                'available' => $menuItem->available
+                'available' => $menuItem->available,
+                'image_url' => $menuItem->image_url,
             ]);
-            
+ 
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Article non trouvé'
@@ -1389,64 +1394,35 @@ public function downloadDateReport(Request $request)
         return false;
     }
 
-    /**
-     * Gestion du menu (version complète)
-     */
-    public function menu(Request $request)
-    {
-        $category = $request->get('category', 'repas');
-        
-        $menuItems = MenuItem::where('category', $category)
-                           ->orderBy('name')
-                           ->get();
-                           
-        $categories = [
-            'repas' => MenuItem::where('category', 'repas')->count(),
-            'boisson' => MenuItem::where('category', 'boisson')->count(),
-        ];
-
-        return view('admin.menu', compact('menuItems', 'category', 'categories'));
-    }
-
-    /**
-     * Ajouter un nouvel article au menu
+   /**
+     * Ajouter un nouvel article au menu (avec image optionnelle)
      */
     public function addMenuItem(Request $request)
     {
-        \Log::info('=== DÉBUT AJOUT ARTICLE ===');
-        \Log::info('Données reçues:', $request->all());
-
         try {
-            // Validation des données
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'description' => 'required|string',
                 'price' => 'required|numeric|min:0',
                 'category' => 'required|in:repas,boisson',
                 'available' => 'sometimes|boolean',
+                'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
-
-            \Log::info('Validation réussie:', $validated);
-
-            // Préparer les données SANS la colonne image
-            $menuData = [
+ 
+            $menuItem = MenuItem::create([
                 'name' => $validated['name'],
                 'description' => $validated['description'],
                 'price' => $validated['price'],
                 'category' => $validated['category'],
-                'available' => $request->has('available') ? (bool)$request->available : true,
+                'available' => $request->has('available') ? (bool) $request->available : true,
                 'promotion_discount' => null,
                 'original_price' => null,
-            ];
-
-            \Log::info('Données préparées pour insertion:', $menuData);
-
-            // Créer l'article
-            $menuItem = MenuItem::create($menuData);
-
-            \Log::info('Article créé avec succès:', ['id' => $menuItem->id]);
-
-            // Si c'est une requête AJAX, retourner JSON
+            ]);
+ 
+            if ($request->hasFile('image')) {
+                MenuImageService::save($menuItem, $request->file('image'));
+            }
+ 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
@@ -1454,31 +1430,41 @@ public function downloadDateReport(Request $request)
                     'item' => $menuItem
                 ]);
             }
-
+ 
             return redirect()->back()->with('success', 'Article ajouté au menu!');
-
+ 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => collect($e->errors())->flatten()->first(),
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            throw $e;
+ 
         } catch (\Exception $e) {
             \Log::error('Erreur lors de la sauvegarde:', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ]);
-
+ 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Erreur lors de la sauvegarde: ' . $e->getMessage()
                 ], 500);
             }
-
+ 
             return redirect()->back()
                 ->with('error', 'Erreur lors de la sauvegarde: ' . $e->getMessage())
                 ->withInput();
         }
     }
-
+ 
     /**
-     * Mettre à jour un article du menu
+     * Mettre à jour un article du menu (image : remplacer ou supprimer)
      */
     public function updateMenuItem(Request $request, $id)
     {
@@ -1489,65 +1475,85 @@ public function downloadDateReport(Request $request)
                 'price' => 'required|numeric|min:0',
                 'category' => 'required|in:repas,boisson',
                 'available' => 'boolean',
+                'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+                'remove_image' => 'nullable|boolean',
             ]);
-
+ 
             $menuItem = MenuItem::findOrFail($id);
-            $menuItem->update($request->all());
-
-            // Si c'est une requête AJAX, retourner JSON
+            $menuItem->update($request->except(['image', 'remove_image']));
+ 
+            if ($request->hasFile('image')) {
+                MenuImageService::save($menuItem, $request->file('image'));
+            } elseif ($request->boolean('remove_image')) {
+                MenuImageService::remove($menuItem);
+            }
+ 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Article mis à jour!',
-                    'item' => $menuItem
+                    'item' => $menuItem->fresh()
                 ]);
             }
-
+ 
             return redirect()->back()->with('success', 'Article mis à jour!');
-
+ 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => collect($e->errors())->flatten()->first(),
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            throw $e;
+ 
         } catch (\Exception $e) {
             \Log::error('Erreur lors de la mise à jour:', [
                 'message' => $e->getMessage()
             ]);
-
+ 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()
                 ], 500);
             }
-
+ 
             return redirect()->back()
                 ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
                 ->withInput();
         }
     }
-
+ 
     /**
-     * Supprimer un article du menu
+     * Supprimer un article du menu (et son image)
      */
     public function deleteMenuItem($id)
     {
         try {
             $menuItem = MenuItem::findOrFail($id);
+ 
+            MenuItemImage::where('menu_item_id', $menuItem->id)->delete();
             $menuItem->delete();
-
+ 
             return response()->json([
                 'success' => true,
                 'message' => 'Article supprimé avec succès!'
             ]);
-
+ 
         } catch (\Exception $e) {
             \Log::error('Erreur lors de la suppression:', [
                 'message' => $e->getMessage()
             ]);
-
+ 
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression: ' . $e->getMessage()
             ], 500);
         }
     }
+ 
 
     /**
      * Basculer la disponibilité d'un article
