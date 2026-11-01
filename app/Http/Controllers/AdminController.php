@@ -5,16 +5,16 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\Order;
 use App\Models\MenuItem;
+use App\Models\MenuItemImage;
 use App\Models\Report;
 use App\Models\OrderItem;
 use App\Models\User;
 use App\Services\MenuImageService;
-use App\Models\MenuItemImage;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
@@ -59,107 +59,107 @@ class AdminController extends Controller
     }
 
     public function tableQrCodes()
-{
-    $tables = \App\Models\User::where('role', 'client')
-                ->orderBy('table_number')
-                ->get();
+    {
+        $tables = \App\Models\User::where('role', 'client')
+                    ->orderBy('table_number')
+                    ->get();
 
-    return view('admin.table-qrcodes', compact('tables'));
-}
-
-/**
- * Créer une nouvelle table client
- */
-public function storeClient(Request $request)
-{
-    $validated = $request->validate([
-        'table_number' => 'required|integer|min:1|unique:users,table_number',
-    ]);
-
-    $user = User::create([
-        'name'         => 'Table ' . $validated['table_number'],
-        'email'        => 'table' . $validated['table_number'] . '@restaurant.com',
-        'password'     => Hash::make(Str::random(32)), // inutile, mais la colonne est NOT NULL
-        'role'         => 'client',
-        'table_number' => $validated['table_number'],
-        // qr_token auto-généré via booted() dans le modèle User
-    ]);
-
-    return response()->json([
-        'success' => true,
-        'message' => "Table {$user->table_number} créée avec succès.",
-        'client'  => $user,
-        'qr_url'  => route('qr.login', ['token' => $user->qr_token]),
-    ]);
-}
-
-/**
- * Supprimer une table client
- */
-public function destroyClient($clientId)
-{
-    $client = User::where('id', $clientId)->where('role', 'client')->firstOrFail();
-    $client->delete();
-
-    return response()->json([
-        'success' => true,
-        'message' => "Table {$client->table_number} supprimée.",
-    ]);
-}
-
-/**
- * Régénérer le QR token (si fuite ou perte)
- */
-public function regenerateQr($clientId)
-{
-    $client = User::where('id', $clientId)->where('role', 'client')->firstOrFail();
-    $client->qr_token = Str::random(48);
-    $client->save();
-
-    return response()->json([
-        'success' => true,
-        'message' => "QR régénéré pour la table {$client->table_number}.",
-        'qr_url'  => route('qr.login', ['token' => $client->qr_token]),
-    ]);
-}
-
-/**
- * Créer plusieurs tables d'un coup (ex: 1 à 20)
- */
-public function bulkStoreClients(Request $request)
-{
-    $validated = $request->validate([
-        'from' => 'required|integer|min:1',
-        'to'   => 'required|integer|min:1|gte:from',
-    ]);
-
-    $created = [];
-    $skipped = [];
-
-    for ($n = $validated['from']; $n <= $validated['to']; $n++) {
-        if (User::where('table_number', $n)->exists()) {
-            $skipped[] = $n;
-            continue;
-        }
-
-        User::create([
-            'name'         => 'Table ' . $n,
-            'email'        => 'table' . $n . '@restaurant.com',
-            'password'     => Hash::make(Str::random(32)),
-            'role'         => 'client',
-            'table_number' => $n,
-        ]);
-        $created[] = $n;
+        return view('admin.table-qrcodes', compact('tables'));
     }
 
-    return response()->json([
-        'success' => true,
-        'message' => count($created) . " table(s) créée(s). " .
-                     (count($skipped) ? count($skipped) . " déjà existante(s), ignorée(s)." : ''),
-        'created' => $created,
-        'skipped' => $skipped,
-    ]);
-}    
+    /**
+     * Créer une nouvelle table client
+     */
+    public function storeClient(Request $request)
+    {
+        $validated = $request->validate([
+            'table_number' => 'required|integer|min:1|unique:users,table_number',
+        ]);
+
+        $user = User::create([
+            'name'         => 'Table ' . $validated['table_number'],
+            'email'        => 'table' . $validated['table_number'] . '@restaurant.com',
+            'password'     => Hash::make(Str::random(32)), // inutile, mais la colonne est NOT NULL
+            'role'         => 'client',
+            'table_number' => $validated['table_number'],
+            // qr_token auto-généré via booted() dans le modèle User
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Table {$user->table_number} créée avec succès.",
+            'client'  => $user,
+            'qr_url'  => route('qr.login', ['token' => $user->qr_token]),
+        ]);
+    }
+
+    /**
+     * Supprimer une table client
+     */
+    public function destroyClient($clientId)
+    {
+        $client = User::where('id', $clientId)->where('role', 'client')->firstOrFail();
+        $client->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Table {$client->table_number} supprimée.",
+        ]);
+    }
+
+    /**
+     * Régénérer le QR token (si fuite ou perte)
+     */
+    public function regenerateQr($clientId)
+    {
+        $client = User::where('id', $clientId)->where('role', 'client')->firstOrFail();
+        $client->qr_token = Str::random(48);
+        $client->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => "QR régénéré pour la table {$client->table_number}.",
+            'qr_url'  => route('qr.login', ['token' => $client->qr_token]),
+        ]);
+    }
+
+    /**
+     * Créer plusieurs tables d'un coup (ex: 1 à 20)
+     */
+    public function bulkStoreClients(Request $request)
+    {
+        $validated = $request->validate([
+            'from' => 'required|integer|min:1',
+            'to'   => 'required|integer|min:1|gte:from',
+        ]);
+
+        $created = [];
+        $skipped = [];
+
+        for ($n = $validated['from']; $n <= $validated['to']; $n++) {
+            if (User::where('table_number', $n)->exists()) {
+                $skipped[] = $n;
+                continue;
+            }
+
+            User::create([
+                'name'         => 'Table ' . $n,
+                'email'        => 'table' . $n . '@restaurant.com',
+                'password'     => Hash::make(Str::random(32)),
+                'role'         => 'client',
+                'table_number' => $n,
+            ]);
+            $created[] = $n;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($created) . " table(s) créée(s). " .
+                         (count($skipped) ? count($skipped) . " déjà existante(s), ignorée(s)." : ''),
+            'created' => $created,
+            'skipped' => $skipped,
+        ]);
+    }
 
     /**
      * Gestion des commandes (version complète) - CORRIGÉ
@@ -466,14 +466,14 @@ public function bulkStoreClients(Request $request)
         return view('admin.menu-content', compact('menuItems', 'category', 'categories'));
     }
 
-  /**
+    /**
      * Récupérer un article du menu via AJAX
      */
     public function getMenuItem($id)
     {
         try {
             $menuItem = MenuItem::findOrFail($id);
- 
+
             return response()->json([
                 'id' => $menuItem->id,
                 'name' => $menuItem->name,
@@ -483,7 +483,7 @@ public function bulkStoreClients(Request $request)
                 'available' => $menuItem->available,
                 'image_url' => $menuItem->image_url,
             ]);
- 
+
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Article non trouvé'
@@ -989,91 +989,91 @@ public function bulkStoreClients(Request $request)
         }
     }
 
-/**
- * Télécharger le rapport PDF pour une date spécifique
- */
-public function downloadDateReport(Request $request)
-{
-    try {
-        $request->validate([
-            'report_date' => 'required|date'
-        ]);
+    /**
+     * Télécharger le rapport PDF pour une date spécifique
+     */
+    public function downloadDateReport(Request $request)
+    {
+        try {
+            $request->validate([
+                'report_date' => 'required|date'
+            ]);
 
-        $reportDate = $request->report_date;
-        $admin = Auth::user();
-        
-        // Récupérer seulement les tables des clients liés
-        $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
+            $reportDate = $request->report_date;
+            $admin = Auth::user();
+            
+            // Récupérer seulement les tables des clients liés
+            $linkedClientTables = $admin->linkedClients()->pluck('table_number')->filter()->toArray();
 
-        // Commandes de la date spécifique
-        $orders = Order::whereIn('table_number', $linkedClientTables)
-            ->whereDate('created_at', $reportDate)
-            ->with('items.menuItem')
-            ->get();
+            // Commandes de la date spécifique
+            $orders = Order::whereIn('table_number', $linkedClientTables)
+                ->whereDate('created_at', $reportDate)
+                ->with('items.menuItem')
+                ->get();
 
-        // Calcul des statistiques
-        $totalRevenue = $orders->whereIn('status', ['terminé', 'livré'])->sum('total');
-        $totalOrders = $orders->count();
-        
-        // Analyse des revenus
-        $revenueAnalysis = [
-            'sur_place' => $orders->where('order_type', 'sur_place')->whereIn('status', ['terminé', 'livré'])->sum('total'),
-            'livraison' => $orders->where('order_type', 'livraison')->whereIn('status', ['terminé', 'livré'])->sum('total'),
-            'total' => $totalRevenue
-        ];
+            // Calcul des statistiques
+            $totalRevenue = $orders->whereIn('status', ['terminé', 'livré'])->sum('total');
+            $totalOrders = $orders->count();
+            
+            // Analyse des revenus
+            $revenueAnalysis = [
+                'sur_place' => $orders->where('order_type', 'sur_place')->whereIn('status', ['terminé', 'livré'])->sum('total'),
+                'livraison' => $orders->where('order_type', 'livraison')->whereIn('status', ['terminé', 'livré'])->sum('total'),
+                'total' => $totalRevenue
+            ];
 
-        // Performance du menu
-        $menuPerformance = $this->getMenuPerformanceForDate($orders, $reportDate);
-        $topItems = $this->getTopItems($menuPerformance);
+            // Performance du menu
+            $menuPerformance = $this->getMenuPerformanceForDate($orders, $reportDate);
+            $topItems = $this->getTopItems($menuPerformance);
 
-        // Statut des commandes
-        $orderStatus = [
-            'commandé' => $orders->where('status', 'commandé')->count(),
-            'en_cours' => $orders->where('status', 'en_cours')->count(),
-            'prêt' => $orders->where('status', 'prêt')->count(),
-            'terminé' => $orders->where('status', 'terminé')->count(),
-            'livré' => $orders->where('status', 'livré')->count(),
-        ];
+            // Statut des commandes
+            $orderStatus = [
+                'commandé' => $orders->where('status', 'commandé')->count(),
+                'en_cours' => $orders->where('status', 'en_cours')->count(),
+                'prêt' => $orders->where('status', 'prêt')->count(),
+                'terminé' => $orders->where('status', 'terminé')->count(),
+                'livré' => $orders->where('status', 'livré')->count(),
+            ];
 
-        // Commandes par heure
-        $ordersByHour = $this->getOrdersByHour($orders, $reportDate);
+            // Commandes par heure
+            $ordersByHour = $this->getOrdersByHour($orders, $reportDate);
 
-        $reportData = [
-            'date' => $reportDate,
-            'formatted_date' => \Carbon\Carbon::parse($reportDate)->format('d/m/Y'),
-            'total_revenue' => $totalRevenue,
-            'total_orders' => $totalOrders,
-            'revenue_analysis' => $revenueAnalysis,
-            'menu_performance' => $menuPerformance,
-            'top_items' => $topItems,
-            'order_status' => $orderStatus,
-            'orders_by_hour' => $ordersByHour,
-            'orders_count' => $orders->count(),
-            'admin' => $admin,
-            'generated_at' => now()->format('d/m/Y H:i')
-        ];
+            $reportData = [
+                'date' => $reportDate,
+                'formatted_date' => \Carbon\Carbon::parse($reportDate)->format('d/m/Y'),
+                'total_revenue' => $totalRevenue,
+                'total_orders' => $totalOrders,
+                'revenue_analysis' => $revenueAnalysis,
+                'menu_performance' => $menuPerformance,
+                'top_items' => $topItems,
+                'order_status' => $orderStatus,
+                'orders_by_hour' => $ordersByHour,
+                'orders_count' => $orders->count(),
+                'admin' => $admin,
+                'generated_at' => now()->format('d/m/Y H:i')
+            ];
 
-        // Utiliser DomPDF directement
-        $dompdf = new \Dompdf\Dompdf();
-        $dompdf->loadHtml(view('admin.reports.pdf', $reportData)->render());
-        
-        // (Optionnel) Définir la taille du papier et l'orientation
-        $dompdf->setPaper('A4', 'portrait');
-        
-        // Rendre le PDF
-        $dompdf->render();
-        
-        $filename = "rapport_{$reportDate}.pdf";
-        
-        // Télécharger le PDF
-        return $dompdf->stream($filename);
+            // Utiliser DomPDF directement
+            $dompdf = new \Dompdf\Dompdf();
+            $dompdf->loadHtml(view('admin.reports.pdf', $reportData)->render());
+            
+            // (Optionnel) Définir la taille du papier et l'orientation
+            $dompdf->setPaper('A4', 'portrait');
+            
+            // Rendre le PDF
+            $dompdf->render();
+            
+            $filename = "rapport_{$reportDate}.pdf";
+            
+            // Télécharger le PDF
+            return $dompdf->stream($filename);
 
-    } catch (\Exception $e) {
-        \Log::error('Erreur téléchargement rapport:', ['error' => $e->getMessage()]);
-        
-        return back()->with('error', 'Erreur lors du téléchargement du rapport: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            \Log::error('Erreur téléchargement rapport:', ['error' => $e->getMessage()]);
+            
+            return back()->with('error', 'Erreur lors du téléchargement du rapport: ' . $e->getMessage());
+        }
     }
-}
 
     /**
      * Performance du menu pour une date spécifique
@@ -1394,7 +1394,26 @@ public function downloadDateReport(Request $request)
         return false;
     }
 
-   /**
+    /**
+     * Gestion du menu (version complète)
+     */
+    public function menu(Request $request)
+    {
+        $category = $request->get('category', 'repas');
+        
+        $menuItems = MenuItem::where('category', $category)
+                           ->orderBy('name')
+                           ->get();
+                           
+        $categories = [
+            'repas' => MenuItem::where('category', 'repas')->count(),
+            'boisson' => MenuItem::where('category', 'boisson')->count(),
+        ];
+
+        return view('admin.menu', compact('menuItems', 'category', 'categories'));
+    }
+
+    /**
      * Ajouter un nouvel article au menu (avec image optionnelle)
      */
     public function addMenuItem(Request $request)
@@ -1408,7 +1427,7 @@ public function downloadDateReport(Request $request)
                 'available' => 'sometimes|boolean',
                 'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
- 
+
             $menuItem = MenuItem::create([
                 'name' => $validated['name'],
                 'description' => $validated['description'],
@@ -1418,11 +1437,11 @@ public function downloadDateReport(Request $request)
                 'promotion_discount' => null,
                 'original_price' => null,
             ]);
- 
+
             if ($request->hasFile('image')) {
                 MenuImageService::save($menuItem, $request->file('image'));
             }
- 
+
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
@@ -1430,9 +1449,9 @@ public function downloadDateReport(Request $request)
                     'item' => $menuItem
                 ]);
             }
- 
+
             return redirect()->back()->with('success', 'Article ajouté au menu!');
- 
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -1442,27 +1461,27 @@ public function downloadDateReport(Request $request)
                 ], 422);
             }
             throw $e;
- 
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
             \Log::error('Erreur lors de la sauvegarde:', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ]);
- 
+
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Erreur lors de la sauvegarde: ' . $e->getMessage()
                 ], 500);
             }
- 
+
             return redirect()->back()
                 ->with('error', 'Erreur lors de la sauvegarde: ' . $e->getMessage())
                 ->withInput();
         }
     }
- 
+
     /**
      * Mettre à jour un article du menu (image : remplacer ou supprimer)
      */
@@ -1478,16 +1497,16 @@ public function downloadDateReport(Request $request)
                 'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
                 'remove_image' => 'nullable|boolean',
             ]);
- 
+
             $menuItem = MenuItem::findOrFail($id);
             $menuItem->update($request->except(['image', 'remove_image']));
- 
+
             if ($request->hasFile('image')) {
                 MenuImageService::save($menuItem, $request->file('image'));
             } elseif ($request->boolean('remove_image')) {
                 MenuImageService::remove($menuItem);
             }
- 
+
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
@@ -1495,9 +1514,9 @@ public function downloadDateReport(Request $request)
                     'item' => $menuItem->fresh()
                 ]);
             }
- 
+
             return redirect()->back()->with('success', 'Article mis à jour!');
- 
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -1507,25 +1526,25 @@ public function downloadDateReport(Request $request)
                 ], 422);
             }
             throw $e;
- 
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
             \Log::error('Erreur lors de la mise à jour:', [
                 'message' => $e->getMessage()
             ]);
- 
+
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()
                 ], 500);
             }
- 
+
             return redirect()->back()
                 ->with('error', 'Erreur lors de la mise à jour: ' . $e->getMessage())
                 ->withInput();
         }
     }
- 
+
     /**
      * Supprimer un article du menu (et son image)
      */
@@ -1533,27 +1552,26 @@ public function downloadDateReport(Request $request)
     {
         try {
             $menuItem = MenuItem::findOrFail($id);
- 
+
             MenuItemImage::where('menu_item_id', $menuItem->id)->delete();
             $menuItem->delete();
- 
+
             return response()->json([
                 'success' => true,
                 'message' => 'Article supprimé avec succès!'
             ]);
- 
+
         } catch (\Exception $e) {
             \Log::error('Erreur lors de la suppression:', [
                 'message' => $e->getMessage()
             ]);
- 
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression: ' . $e->getMessage()
             ], 500);
         }
     }
- 
 
     /**
      * Basculer la disponibilité d'un article
