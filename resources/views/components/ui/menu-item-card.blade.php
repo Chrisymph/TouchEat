@@ -1,6 +1,20 @@
 @props(['item'])
 
-<div class="bg-white rounded-lg shadow transition-all duration-200 hover:shadow-lg w-full">
+<div class="bg-white rounded-lg shadow transition-all duration-200 hover:shadow-lg w-full overflow-hidden">
+
+    {{-- Image de l'article (ou emoji par défaut) --}}
+    @if($item->image_url)
+        <img src="{{ $item->image_url }}"
+             alt="{{ $item->name }}"
+             loading="lazy"
+             decoding="async"
+             class="w-full h-40 object-cover bg-gray-100">
+    @else
+        <div class="w-full h-40 bg-orange-50 flex items-center justify-center text-5xl">
+            {{ $item->category === 'boisson' ? '🥤' : '🍽️' }}
+        </div>
+    @endif
+
     <div class="p-6">
         <div class="flex justify-between items-start mb-4">
             <div class="flex-1">
