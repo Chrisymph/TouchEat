@@ -168,6 +168,16 @@
                             <div class="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
                             <div class="relative z-10 flex-1">
+                                <!-- Image de l'article (ou emoji par défaut) -->
+                                <template x-if="item.image_url">
+                                    <img :src="item.image_url" :alt="item.name" loading="lazy" decoding="async"
+                                         class="w-full h-44 object-cover rounded-xl mb-4 bg-gray-100">
+                                </template>
+                                <template x-if="!item.image_url">
+                                    <div class="w-full h-44 rounded-xl mb-4 bg-orange-50 flex items-center justify-center text-5xl"
+                                         x-text="item.category === 'boisson' ? '🥤' : '🍽️'"></div>
+                                </template>
+
                                 <div class="flex justify-between items-start mb-4">
                                     <div class="flex-1">
                                         <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-700 transition-colors duration-300" x-text="item.name"></h3>
@@ -277,6 +287,11 @@
                             <template x-for="item in cartItems" :key="item.cart_key">
                                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                                     <div class="flex justify-between items-start mb-4">
+                                        <!-- Miniature de l'article -->
+                                        <template x-if="item.image_url">
+                                            <img :src="item.image_url" :alt="item.name" loading="lazy"
+                                                 class="w-16 h-16 object-cover rounded-lg mr-4 flex-shrink-0 bg-gray-100">
+                                        </template>
                                         <div class="flex-1">
                                             <h3 class="text-xl font-semibold text-gray-800" x-text="item.name"></h3>
                                             <p class="text-gray-600 text-sm mt-1" x-text="item.description"></p>
@@ -641,14 +656,16 @@
             deliveryNotes: '',
             selectedNetwork: 'mtn',
             isProcessingPayment: false,
-            pendingSync: 0,
-            syncChain: Promise.resolve(),
             hasActiveOrder: @json($currentOrder !== null),
             currentOrder: @json($currentOrder),
 
             // Variables pour l'ajout à une commande existante
             isAddingToExistingOrder: @json($isAddingToExisting),
             currentOrderId: @json($existingOrderId),
+
+            // File d'attente des synchronisations panier (panier instantané)
+            pendingSync: 0,
+            syncChain: Promise.resolve(),
 
             init() {
                 // ✅ CONFIGURATION AXIOS : CSRF + cookies + JSON
@@ -681,19 +698,27 @@
                 this.cartCount = this.cartItems.reduce((t, i) => t + i.quantity, 0);
             },
 
-                        enqueueSync(task) {
+            // ================================================================
+            // PANIER INSTANTANÉ
+            // L'écran est mis à jour tout de suite, puis le serveur est
+            // synchronisé en arrière-plan. En cas d'erreur, on annule.
+            // ================================================================
+
+            // File d'attente : les requêtes partent une par une (évite de perdre
+            // des articles quand on clique très vite sur plusieurs produits)
+            enqueueSync(task) {
                 this.pendingSync++;
                 this.syncChain = this.syncChain
                     .then(task)
                     .catch(() => {})
                     .finally(() => { this.pendingSync--; });
             },
- 
+
             extractError(error, fallback) {
                 if (error.response) {
                     const data = error.response.data;
                     const status = error.response.status;
- 
+
                     if (data && data.errors) return Object.values(data.errors).flat().join(' ');
                     if (data && data.message) return data.message;
                     if (data && data.error) return data.error;
@@ -703,7 +728,7 @@
                 }
                 return fallback;
             },
- 
+
             revertAdd(cartKey) {
                 const idx = this.cartItems.findIndex(i => i.cart_key === cartKey);
                 if (idx !== -1) {
@@ -719,7 +744,7 @@
             addToCart(item) {
                 const orderId = (this.isAddingToExistingOrder && this.currentOrderId) ? this.currentOrderId : null;
                 const cartKey = item.id + (orderId ? '_' + orderId : '');
- 
+
                 // 1) Interface mise à jour tout de suite
                 const existing = this.cartItems.find(i => i.cart_key === cartKey);
                 if (existing) {
@@ -741,19 +766,19 @@
                 }
                 this.calculateCartTotal();
                 this.showToast('Article ajouté au panier!');
- 
+
                 // 2) Synchronisation avec le serveur en arrière-plan
                 this.enqueueSync(async () => {
                     try {
                         const payload = { menu_item_id: item.id, quantity: 1 };
                         if (orderId) payload.order_id = orderId;
- 
+
                         const response = await axios.post('{{ route("client.cart.add") }}', payload);
- 
+
                         if (!response.data.success) {
                             throw new Error(response.data.message || 'Erreur lors de l\'ajout au panier');
                         }
- 
+
                         // Dernière requête de la file : on aligne l'écran sur le serveur
                         if (this.pendingSync <= 1) {
                             this.cartItems = response.data.cart_items || [];
@@ -766,15 +791,15 @@
                     }
                 });
             },
- 
+
             updateQuantity(itemId, newQuantity, orderId = null) {
                 const cartKey = itemId + (orderId ? '_' + orderId : '');
                 const idx = this.cartItems.findIndex(i => i.cart_key === cartKey);
                 if (idx === -1) return;
- 
+
                 // Sauvegarde pour pouvoir annuler en cas d'erreur
                 const snapshot = this.cartItems.map(i => ({ ...i }));
- 
+
                 // 1) Interface mise à jour tout de suite
                 if (newQuantity <= 0) {
                     this.cartItems.splice(idx, 1);
@@ -783,19 +808,19 @@
                 }
                 this.calculateCartTotal();
                 this.showToast(newQuantity <= 0 ? 'Article supprimé du panier' : 'Quantité mise à jour');
- 
+
                 // 2) Synchronisation avec le serveur en arrière-plan
                 this.enqueueSync(async () => {
                     try {
                         const payload = { menu_item_id: itemId, quantity: Math.max(0, newQuantity) };
                         if (orderId) payload.order_id = orderId;
- 
+
                         const response = await axios.post('{{ route("client.cart.update") }}', payload);
- 
+
                         if (!response.data.success) {
                             throw new Error(response.data.message || 'Erreur lors de la mise à jour');
                         }
- 
+
                         if (this.pendingSync <= 1) {
                             this.cartItems = response.data.cart_items || [];
                             this.calculateCartTotal();
@@ -824,6 +849,9 @@
                 this.isProcessingPayment = true;
 
                 try {
+                    // Attendre que le panier soit synchronisé avec le serveur
+                    await this.syncChain;
+
                     const response = await axios.post('{{ route("client.order.place") }}', {
                         order_type: 'sur_place',
                         phone_number: this.phoneNumber,
@@ -882,6 +910,9 @@
                 this.isProcessingPayment = true;
 
                 try {
+                    // Attendre que le panier soit synchronisé avec le serveur
+                    await this.syncChain;
+
                     const requestData = {
                         order_type: orderType,
                         phone_number: this.phoneNumber,
@@ -940,6 +971,9 @@
                     if (this.isAddingToExistingOrder && this.currentOrderId) {
                         requestData.order_id = this.currentOrderId;
                     }
+
+                    // Attendre la fin des synchronisations en cours avant de vider
+                    await this.syncChain;
 
                     const response = await axios.post('{{ route("client.cart.clear") }}', requestData);
 
