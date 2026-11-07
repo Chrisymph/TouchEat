@@ -36,6 +36,7 @@ return [
     'secret'         => env('KKIAPAY_SECRET'),
     'webhook_secret' => env('KKIAPAY_WEBHOOK_SECRET'),
     'sandbox'        => env('KKIAPAY_SANDBOX', true),
+    'demo_bypass' => env('KKIAPAY_DEMO_BYPASS', false),
     ],
 
 ];

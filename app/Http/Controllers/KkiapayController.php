@@ -147,6 +147,31 @@ class KkiapayController extends Controller
      */
     private function settle(Payment $payment, string $transactionId): array
     {
+        // =====================================================================
+        // ⚠️ MODE DÉMO : valide le paiement SANS vérifier auprès de KKiaPay.
+        // Activé uniquement si KKIAPAY_DEMO_BYPASS=true dans le .env
+        // NE JAMAIS ACTIVER EN PRODUCTION.
+        // =====================================================================
+        if (config('services.kkiapay.demo_bypass')) {
+            return DB::transaction(function () use ($payment, $transactionId) {
+                $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
+
+                $payment->update([
+                    'transaction_id' => $transactionId,
+                    'status'         => Payment::STATUS_VERIFIED,
+                    'verified_at'    => now(),
+                ]);
+
+                $order = Order::find($payment->order_id);
+                if ($order) {
+                    $order->update(['payment_status' => 'payé']);
+                }
+
+                return ['ok' => true, 'message' => 'Paiement confirmé (MODE DÉMO) !'];
+            });
+        }
+        // ===================== FIN MODE DÉMO =================================
+
         try {
             $tx = $this->kkiapay()->verifyTransaction($transactionId);
         } catch (\Throwable $e) {
