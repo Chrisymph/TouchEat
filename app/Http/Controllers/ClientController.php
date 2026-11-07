@@ -12,6 +12,29 @@ use Carbon\Carbon;
 
 class ClientController extends Controller
 {
+    // =====================================================================
+    // ⚠️ DÉMO : true = saute KKiaPay et va directement à la confirmation
+    // Remets false après la démo. NE JAMAIS DÉPLOYER AVEC true.
+    // =====================================================================
+    private const DEMO_SKIP_PAYMENT = true;
+
+    /**
+     * DÉMO : valide le paiement sans passer par KKiaPay
+     * et retourne l'URL de la page de confirmation.
+     */
+    private function demoPay(Payment $payment, Order $order): string
+    {
+        $payment->update([
+            'transaction_id' => 'demo_' . $payment->id . '_' . time(),
+            'status'         => Payment::STATUS_VERIFIED,
+            'verified_at'    => now(),
+        ]);
+
+        $order->update(['payment_status' => 'payé']);
+
+        return route('client.order.confirmation', $order->id);
+    }
+
     public function dashboard()
     {
         if (!Auth::check() || Auth::user()->role !== 'client') {
@@ -58,19 +81,19 @@ class ClientController extends Controller
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas passer de commande.'
             ], 403);
         }
- 
+
         $request->validate([
             'menu_item_id' => 'required|integer',
             'quantity' => 'required|integer|min:1',
             'order_id' => 'nullable|integer'
         ]);
- 
+
         // Vérifier que la commande existe et appartient à l'utilisateur
         if ($request->order_id) {
             $orderExists = Order::where('id', $request->order_id)
                 ->where('table_number', $user->table_number)
                 ->exists();
- 
+
             if (!$orderExists) {
                 return response()->json([
                     'success' => false,
@@ -78,19 +101,19 @@ class ClientController extends Controller
                 ], 404);
             }
         }
- 
+
         $menuItem = MenuItem::find($request->menu_item_id);
- 
+
         if (!$menuItem || !$menuItem->available) {
             return response()->json([
                 'success' => false,
                 'message' => 'Article non disponible.'
             ], 404);
         }
- 
+
         $cart = session()->get('cart', []);
         $cartKey = $request->menu_item_id . ($request->order_id ? '_' . $request->order_id : '');
- 
+
         if (isset($cart[$cartKey])) {
             $cart[$cartKey]['quantity'] += $request->quantity;
         } else {
@@ -108,11 +131,11 @@ class ClientController extends Controller
                 'cart_key' => $cartKey
             ];
         }
- 
+
         session()->put('cart', $cart);
- 
+
         $cartCount = array_sum(array_column($cart, 'quantity'));
- 
+
         return response()->json([
             'success' => true,
             'cart_count' => $cartCount,
@@ -121,7 +144,7 @@ class ClientController extends Controller
             'message' => 'Article ajouté au panier avec succès!'
         ]);
     }
- 
+
     public function updateCart(Request $request)
     {
         $user = Auth::user();
@@ -131,16 +154,16 @@ class ClientController extends Controller
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas modifier votre panier.'
             ], 403);
         }
- 
+
         $request->validate([
             'menu_item_id' => 'required|integer',
             'quantity' => 'required|integer|min:0',
             'order_id' => 'nullable|integer'
         ]);
- 
+
         $cart = session()->get('cart', []);
         $cartKey = $request->menu_item_id . ($request->order_id ? '_' . $request->order_id : '');
- 
+
         if ($request->quantity == 0) {
             unset($cart[$cartKey]);
         } else {
@@ -148,15 +171,15 @@ class ClientController extends Controller
                 $cart[$cartKey]['quantity'] = $request->quantity;
             }
         }
- 
+
         session()->put('cart', $cart);
- 
+
         $cartCount = array_sum(array_column($cart, 'quantity'));
         $cartTotal = 0;
         foreach ($cart as $item) {
             $cartTotal += $item['price'] * $item['quantity'];
         }
- 
+
         return response()->json([
             'success' => true,
             'cart_count' => $cartCount,
@@ -171,7 +194,7 @@ class ClientController extends Controller
         $user = Auth::user();
         if ($user->isSuspended()) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas passer de commande.'
             ], 403);
         }
@@ -186,10 +209,10 @@ class ClientController extends Controller
         ]);
 
         $cart = session()->get('cart', []);
-        
+
         if (empty($cart)) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Votre panier est vide'
             ]);
         }
@@ -212,7 +235,7 @@ class ClientController extends Controller
 
         if (empty($filteredCart)) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Aucun article valide dans le panier pour ce type de commande'
             ]);
         }
@@ -293,11 +316,13 @@ class ClientController extends Controller
             }
             session()->put('cart', $cart);
 
-            // Redirection vers le paiement KKiaPay (paiement additionnel)
-            $redirectUrl = route('client.kkiapay.show', [
-                'order' => $order->id,
-                'payment' => $additionalPayment->id
-            ]);
+            // Redirection : DÉMO = confirmation directe, sinon paiement KKiaPay
+            $redirectUrl = self::DEMO_SKIP_PAYMENT
+                ? $this->demoPay($additionalPayment, $order)
+                : route('client.kkiapay.show', [
+                    'order' => $order->id,
+                    'payment' => $additionalPayment->id
+                ]);
 
             return response()->json([
                 'success' => true,
@@ -352,11 +377,13 @@ class ClientController extends Controller
                 'transaction_id' => 'pending_' . time() . '_' . rand(1000, 9999)
             ]);
 
-            // Redirection vers le paiement KKiaPay
-            $redirectUrl = route('client.kkiapay.show', [
-                'order' => $order->id,
-                'payment' => $payment->id
-            ]);
+            // Redirection : DÉMO = confirmation directe, sinon paiement KKiaPay
+            $redirectUrl = self::DEMO_SKIP_PAYMENT
+                ? $this->demoPay($payment, $order)
+                : route('client.kkiapay.show', [
+                    'order' => $order->id,
+                    'payment' => $payment->id
+                ]);
 
             return response()->json([
                 'success' => true,
@@ -376,7 +403,7 @@ class ClientController extends Controller
         $user = Auth::user();
         if ($user->isSuspended()) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas ajouter d\'articles.'
             ], 403);
         }
@@ -449,12 +476,12 @@ class ClientController extends Controller
         // Calculer le temps écoulé depuis le début de la préparation
         $elapsedMinutes = 0;
         $startedAt = null;
-        
+
         if ($order->status === 'en_cours' && $order->estimated_time && $order->started_at) {
             // Convertir started_at en objet Carbon si c'est une string
             $startedAt = $order->started_at instanceof Carbon ? $order->started_at : Carbon::parse($order->started_at);
             $elapsedMinutes = now()->diffInMinutes($startedAt);
-            
+
             // Limiter au temps estimé si dépassé
             if ($elapsedMinutes > $order->estimated_time) {
                 $elapsedMinutes = $order->estimated_time;
@@ -475,7 +502,7 @@ class ClientController extends Controller
     public function getOrderStatus($orderId)
     {
         $order = Order::with('items.menuItem')->find($orderId);
-        
+
         if (!$order) {
             return response()->json(['error' => 'Commande non trouvée'], 404);
         }
@@ -483,12 +510,12 @@ class ClientController extends Controller
         // Calculer le temps écoulé depuis le début de la préparation
         $elapsedMinutes = 0;
         $startedAt = null;
-        
+
         if ($order->status === 'en_cours' && $order->started_at) {
             // Convertir started_at en objet Carbon si c'est une string
             $startedAt = $order->started_at instanceof Carbon ? $order->started_at : Carbon::parse($order->started_at);
             $elapsedMinutes = now()->diffInMinutes($startedAt);
-            
+
             // Limiter au temps estimé si dépassé
             if ($order->estimated_time && $elapsedMinutes > $order->estimated_time) {
                 $elapsedMinutes = $order->estimated_time;
@@ -514,7 +541,7 @@ class ClientController extends Controller
         $user = Auth::user();
         if ($user->isSuspended()) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Votre compte a été suspendu. Vous ne pouvez pas demander la livraison.'
             ], 403);
         }
@@ -565,7 +592,7 @@ class ClientController extends Controller
         }
 
         $user = Auth::user();
-        
+
         $orders = Order::where('table_number', $user->table_number)
             ->with('items.menuItem')
             ->orderBy('created_at', 'desc')
@@ -591,7 +618,7 @@ class ClientController extends Controller
     {
         $cart = session()->get('cart', []);
         $orderId = $request->get('order_id');
-        
+
         if ($orderId) {
             // Vider seulement les articles d'une commande spécifique
             foreach ($cart as $key => $item) {
@@ -603,9 +630,9 @@ class ClientController extends Controller
             // Vider tout le panier
             $cart = [];
         }
-        
+
         session()->put('cart', $cart);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Panier vidé avec succès',
