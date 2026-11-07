@@ -1,4 +1,4 @@
-<div class="space-y-6" id="orders-content-container">
+<div class="space-y-6" id="orders-content-container" data-current-status="{{ $status }}">
     <!-- Header -->
     <div class="flex justify-between items-center">
         <h2 class="text-3xl font-bold">Gestion des Commandes</h2>
@@ -726,3 +726,56 @@ document.addEventListener('DOMContentLoaded', function() {
     transition: width 1s ease-in-out;
 }
 </style>
+
+<script>
+// ============================================================
+// AUTO-RAFRAÎCHISSEMENT DES COMMANDES
+// Vérifie toutes les 5 s si quelque chose a changé et ne recharge
+// la liste que dans ce cas (une seule boucle, même si le contenu
+// est rechargé plusieurs fois).
+// ============================================================
+(function () {
+    if (window.__ordersAutoRefresh) return;
+    window.__ordersAutoRefresh = true;
+    window.__ordersLastSignature = null;
+
+    async function checkOrders() {
+        const container = document.getElementById('orders-content-container');
+        if (!container) return;                 // l'admin est sur un autre onglet
+        if (document.hidden) return;            // onglet du navigateur inactif
+
+        // Ne pas recharger pendant que l'admin remplit le modal de temps
+        const modal = document.getElementById('preparationTimeModal');
+        if (modal && modal.style.display !== 'none') return;
+
+        try {
+            const response = await fetch('/admin/orders/signature', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+
+            if (window.__ordersLastSignature === null) {
+                window.__ordersLastSignature = data.signature;   // première lecture = référence
+                return;
+            }
+
+            if (data.signature !== window.__ordersLastSignature) {
+                window.__ordersLastSignature = data.signature;
+                const status = container.getAttribute('data-current-status') || 'pending';
+                if (window.dashboardComponent && typeof window.dashboardComponent.loadOrders === 'function') {
+                    window.dashboardComponent.loadOrders(status);
+                    if (typeof showToast === 'function') {
+                        showToast('🔔 Les commandes ont été mises à jour', 'success');
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Erreur auto-refresh commandes:', e);
+        }
+    }
+
+    setInterval(checkOrders, 5000);
+    checkOrders();
+})();
+</script>

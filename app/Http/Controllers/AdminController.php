@@ -206,6 +206,29 @@ class AdminController extends Controller
     }
 
     /**
+     * Empreinte légère des commandes payées : change dès qu'une commande
+     * est créée, modifiée (statut, total) ou qu'un article est ajouté.
+     * Utilisée par l'auto-rafraîchissement de la page des commandes.
+     */
+    public function ordersSignature()
+    {
+        $linkedClientTables = Auth::user()->linkedClients()->pluck('table_number')->filter()->toArray();
+
+        $orders = Order::whereIn('table_number', $linkedClientTables)
+            ->where('payment_status', 'payé')
+            ->get(['id', 'status', 'total', 'updated_at']);
+
+        $items = OrderItem::whereIn('order_id', $orders->pluck('id'))
+            ->selectRaw('COUNT(*) as c, COALESCE(SUM(quantity), 0) as q')
+            ->first();
+
+        $raw = $orders->map(fn($o) => $o->id . '|' . $o->status . '|' . $o->total . '|' . $o->updated_at)->implode(';')
+             . '#' . ($items->c ?? 0) . '|' . ($items->q ?? 0);
+
+        return response()->json(['signature' => md5($raw)]);
+    }
+
+    /**
      * Gestion des commandes (version AJAX) - CORRIGÉ
      */
     public function ordersAjax(Request $request)
@@ -1694,8 +1717,8 @@ class AdminController extends Controller
         // Temps de préparation moyen
         $avgPreparationTime = $this->getAveragePreparationTime($completedOrders);
 
-        // Statistiques détaillées
-        $detailedStats = $this->getDetailedStats($startDate, $endDate, $linkedClientTables);
+        // Statistiques détaillées (CORRIGÉ : getDetailedStats n'existait pas)
+        $detailedStats = $this->getDetailedStatsAllTime($linkedClientTables);
 
         return view('admin.reports-full', compact(
             'totalRevenue',

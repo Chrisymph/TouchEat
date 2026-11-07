@@ -47,15 +47,19 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Routes admin
 Route::middleware(['admin'])->prefix('admin')->group(function () {
 
-// CRÉATION / SUPPRESSION DE TABLES CLIENTS
-Route::post('/clients', [AdminController::class, 'storeClient'])->name('admin.clients.store');
-Route::delete('/clients/{clientId}', [AdminController::class, 'destroyClient'])->name('admin.clients.destroy');
-Route::post('/clients/{clientId}/regenerate-qr', [AdminController::class, 'regenerateQr'])->name('admin.clients.regenerate-qr');
-Route::post('/clients/bulk', [AdminController::class, 'bulkStoreClients'])->name('admin.clients.bulk');
+    // CRÉATION / SUPPRESSION DE TABLES CLIENTS
+    Route::post('/clients', [AdminController::class, 'storeClient'])->name('admin.clients.store');
+    Route::delete('/clients/{clientId}', [AdminController::class, 'destroyClient'])->name('admin.clients.destroy');
+    Route::post('/clients/{clientId}/regenerate-qr', [AdminController::class, 'regenerateQr'])->name('admin.clients.regenerate-qr');
+    Route::post('/clients/bulk', [AdminController::class, 'bulkStoreClients'])->name('admin.clients.bulk');
 
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/orders', [AdminController::class, 'orders'])->name('admin.orders');
     Route::get('/orders/ajax', [AdminController::class, 'ordersAjax'])->name('admin.orders.ajax');
+
+    // AUTO-RAFRAÎCHISSEMENT : doit rester AVANT /orders/{id}
+    Route::get('/orders/signature', [AdminController::class, 'ordersSignature'])->name('admin.orders.signature');
+
     Route::put('/orders/{id}/status', [AdminController::class, 'updateOrderStatus'])->name('admin.orders.status');
     Route::get('/orders/{id}', [AdminController::class, 'showOrder'])->name('admin.orders.show');
     Route::get('/orders/{id}/ajax', [AdminController::class, 'showOrder'])->name('admin.orders.ajax.details');
@@ -106,8 +110,6 @@ Route::post('/clients/bulk', [AdminController::class, 'bulkStoreClients'])->name
 // Routes client
 Route::middleware(['auth'])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard');
-    //Route::post('/cart/add', [ClientController::class, 'addToCart'])->name('client.cart.add');
-    //Route::post('/cart/update', [ClientController::class, 'updateCart'])->name('client.cart.update');
     Route::post('/order/place', [ClientController::class, 'placeOrder'])->name('client.order.place');
     Route::get('/order/{id}/status', [ClientController::class, 'getOrderStatus'])->name('client.order.status');
     Route::get('/order/{id}/confirmation', [ClientController::class, 'orderConfirmation'])->name('client.order.confirmation');
