@@ -1996,6 +1996,14 @@ document.addEventListener('alpine:init', () => {
         loading: false,
         error: false,
 
+        // === COMMANDES : cache par onglet + auto-rafraîchissement ===
+        ordersCache: { pending: null, ready: null, completed: null },
+        ordersStatus: 'pending',
+        ordersSignature: null,
+        lastOwnOrdersLoad: 0,
+        pollTimer: null,
+        polling: false,
+
         // === NOUVELLES PROPRIÉTÉS : gestion des tables ===
         showAddTableModal: false,
         newTableNumber: '',
@@ -2010,6 +2018,8 @@ document.addEventListener('alpine:init', () => {
         
         init() {
             window.dashboardComponent = this;
+            // Empêche tout ancien script d'auto-rafraîchissement de démarrer en double
+            window.__ordersAutoRefresh = true;
             console.log('Dashboard component initialized');
             
             // Récupérer l'onglet depuis le localStorage
@@ -2021,11 +2031,17 @@ document.addEventListener('alpine:init', () => {
                     this.switchTab(savedTab);
                 });
             }
+
+            // Vérification légère toutes les 4 secondes (uniquement sur l'onglet Commandes)
+            this.pollTimer = setInterval(() => this.pollOrders(), 4000);
         },
         
         async switchTab(tabName) {
             this.activeTab = tabName;
-            this.loading = true;
+
+            // Si les commandes sont déjà en mémoire, on les affiche tout de suite
+            const hasOrdersCache = tabName === 'orders' && !!this.ordersContent;
+            this.loading = !hasOrdersCache;
             this.error = false;
             
             // Sauvegarder l'onglet dans le localStorage
@@ -2035,7 +2051,7 @@ document.addEventListener('alpine:init', () => {
             
             try {
                 if (tabName === 'orders') {
-                    await this.loadOrders();
+                    await this.loadOrders(null, hasOrdersCache);
                 } else if (tabName === 'menu') {
                     await this.loadMenu();
                 } else if (tabName === 'clients') {
@@ -2152,39 +2168,158 @@ document.addEventListener('alpine:init', () => {
                 this.submittingBulk = false;
             }
         },
-        
-        async loadOrders(status = null) {
+
+        // ====================================================================
+        // COMMANDES : chargement rapide + rafraîchissement automatique
+        // ====================================================================
+
+        // Récupère le HTML d'un onglet de commandes
+        async fetchOrdersHtml(status) {
+            const response = await fetch(`/admin/orders/ajax?status=${status}&_=${Date.now()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`);
+            }
+            return await response.text();
+        },
+
+        // Récupère l'empreinte légère des commandes (null si erreur)
+        async fetchOrdersSignature() {
             try {
-                // Utiliser le statut sauvegardé ou celui fourni
-                const savedStatus = localStorage.getItem('adminOrdersStatus') || 'pending';
-                const ordersStatus = status || savedStatus;
-                
-                console.log('Chargement des commandes, statut:', ordersStatus);
-                const response = await fetch(`/admin/orders/ajax?status=${ordersStatus}&_=${Date.now()}`);
-                
+                const response = await fetch(`/admin/orders/signature?_=${Date.now()}`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
                 if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
+                    console.warn('Signature commandes: HTTP', response.status);
+                    return null;
                 }
-                
-                const html = await response.text();
-                this.ordersContent = html;
-                console.log('Commandes chargées avec succès');
-                
-                // Sauvegarder le statut
-                localStorage.setItem('adminOrdersStatus', ordersStatus);
-                
+                const data = await response.json();
+                return data.signature || null;
+            } catch (e) {
+                console.warn('Signature commandes indisponible:', e);
+                return null;
+            }
+        },
+
+        // true si l'admin est en train d'utiliser un formulaire / une fenêtre
+        anyModalOpen() {
+            const ids = ['timeModal', 'addTimeModal', 'orderDetailsModal', 'globalAddModal',
+                         'promotionModal', 'addClientModal', 'dateReportModal'];
+            const domOpen = ids.some(id => {
+                const el = document.getElementById(id);
+                return el && el.style.display && el.style.display !== 'none';
+            });
+            return domOpen || this.showAddTableModal || this.showBulkModal;
+        },
+
+        // Charge un onglet de commandes.
+        // instant = true : affiche tout de suite la version en mémoire, puis met à jour en arrière-plan
+        async loadOrders(status = null, instant = false) {
+            const ordersStatus = status || localStorage.getItem('adminOrdersStatus') || 'pending';
+            localStorage.setItem('adminOrdersStatus', ordersStatus);
+            this.ordersStatus = ordersStatus;
+            this.lastOwnOrdersLoad = Date.now();
+
+            const cached = this.ordersCache[ordersStatus];
+            if (instant && cached) {
+                this.ordersContent = cached;
+                this.error = false;
+            }
+
+            try {
+                const [signature, html] = await Promise.all([
+                    this.fetchOrdersSignature(),
+                    this.fetchOrdersHtml(ordersStatus)
+                ]);
+
+                this.ordersCache[ordersStatus] = html;
+                if (signature) this.ordersSignature = signature;
+
+                // On ne remplace que si l'admin est toujours sur le même onglet et que le contenu a changé
+                if (this.ordersStatus === ordersStatus && this.ordersContent !== html) {
+                    this.ordersContent = html;
+                }
+                this.error = false;
+
+                // Préparer les deux autres onglets pour qu'ils s'ouvrent instantanément
+                this.prefetchOtherOrders(ordersStatus);
+
             } catch (error) {
                 console.error('Erreur de chargement des commandes:', error);
-                this.error = true;
-                this.ordersContent = `
-                    <div class="text-center py-8 text-red-600">
-                        <p>Erreur de chargement des commandes</p>
-                        <button onclick="window.dashboardComponent.loadOrders()" 
-                                class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-                            Réessayer
-                        </button>
-                    </div>
-                `;
+                // Si on a déjà quelque chose à afficher, on reste discret
+                if (!(instant && cached)) {
+                    this.error = true;
+                    this.ordersContent = `
+                        <div class="text-center py-8 text-red-600">
+                            <p>Erreur de chargement des commandes</p>
+                            <button onclick="window.dashboardComponent.loadOrders()" 
+                                    class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                                Réessayer
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        },
+
+        // Charge en arrière-plan les onglets pas encore en mémoire
+        async prefetchOtherOrders(currentStatus) {
+            const others = ['pending', 'ready', 'completed'].filter(s => s !== currentStatus && !this.ordersCache[s]);
+            await Promise.allSettled(others.map(async (s) => {
+                try {
+                    this.ordersCache[s] = await this.fetchOrdersHtml(s);
+                } catch (e) {
+                    console.warn('Préchargement impossible pour', s, e);
+                }
+            }));
+        },
+
+        // Rafraîchit les trois onglets d'un coup (appelé quand une commande change)
+        async refreshAllOrders() {
+            const statuses = ['pending', 'ready', 'completed'];
+            const results = await Promise.allSettled(statuses.map(s => this.fetchOrdersHtml(s)));
+
+            results.forEach((res, i) => {
+                if (res.status === 'fulfilled') {
+                    this.ordersCache[statuses[i]] = res.value;
+                }
+            });
+
+            const current = this.ordersCache[this.ordersStatus];
+            if (current && this.ordersContent !== current) {
+                this.ordersContent = current;
+            }
+        },
+
+        // Vérification périodique : ne fait rien si l'admin est ailleurs ou occupé
+        async pollOrders() {
+            if (this.activeTab !== 'orders' || document.hidden || this.polling) return;
+            if (this.loading || this.anyModalOpen()) return;
+
+            this.polling = true;
+            try {
+                const signature = await this.fetchOrdersSignature();
+                if (!signature) return;
+
+                if (this.ordersSignature === null) {
+                    this.ordersSignature = signature;
+                    return;
+                }
+
+                if (signature !== this.ordersSignature) {
+                    this.ordersSignature = signature;
+                    await this.refreshAllOrders();
+
+                    // Message discret, sauf si le changement vient d'une action de l'admin
+                    if (Date.now() - this.lastOwnOrdersLoad > 6000) {
+                        showToast('🔔 Commandes mises à jour', 'success', 2500);
+                    }
+                }
+            } catch (e) {
+                console.error('Erreur auto-refresh commandes:', e);
+            } finally {
+                this.polling = false;
             }
         },
         
@@ -2697,8 +2832,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Boutons de statut commandes
-        if (e.target.hasAttribute('data-status')) {
+        // Boutons de statut commandes (onglets En attente / Prêtes / Terminées)
+        // Les onglets s'affichent instantanément depuis la mémoire, puis se mettent à jour
+        if (e.target.hasAttribute('data-status') && e.target.tagName === 'BUTTON') {
             e.preventDefault();
             const status = e.target.getAttribute('data-status');
             console.log('Changement de statut:', status);
@@ -2707,7 +2843,7 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('adminOrdersStatus', status);
             
             if (window.dashboardComponent) {
-                window.dashboardComponent.loadOrders(status);
+                window.dashboardComponent.loadOrders(status, true);
             }
         }
     });
